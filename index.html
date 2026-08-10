@@ -1,0 +1,1721 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#0f2942">
+<title>Quản Lý Đơn Đặt Hàng &amp; Nhà Cung Cấp</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+:root{
+  --navy:#0f2942;--primary:#1a5296;--primary-dark:#0d3a6e;--primary-light:#e8f0f9;
+  --bg:#f4f6f9;--surface:#ffffff;--border:#e1e6ec;--border-strong:#c7d0dc;
+  --text:#1c2733;--text-muted:#5b6b7c;--text-faint:#8996a5;
+  --success:#1b8a5a;--success-bg:#e6f6ee;--warning:#c9720a;--warning-bg:#fdf0dc;
+  --danger:#c62828;--danger-bg:#fce9e9;--draft:#6b7280;--draft-bg:#eef0f2;
+  --radius:10px;--radius-sm:6px;
+  --shadow:0 1px 3px rgba(15,41,66,.08),0 1px 2px rgba(15,41,66,.06);
+  --shadow-lg:0 8px 24px rgba(15,41,66,.16);
+  --font:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --nav-h:60px;--bottom-h:64px;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:var(--font);background:var(--bg);color:var(--text);
+  -webkit-text-size-adjust:100%;line-height:1.45;
+  padding-bottom:var(--bottom-h);
+}
+button,input,select,textarea{font-family:inherit;font-size:15px;color:inherit;}
+button{cursor:pointer;}
+h1,h2,h3,h4{margin:0 0 4px 0;font-weight:600;color:var(--navy);}
+p{margin:0 0 8px 0;}
+a{color:var(--primary);}
+::-webkit-scrollbar{width:8px;height:8px;}
+::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:4px;}
+
+/* Error banner */
+#error-banner{position:fixed;top:0;left:0;right:0;z-index:9999;background:var(--danger);color:#fff;
+  transform:translateY(-100%);transition:transform .25s ease;box-shadow:0 2px 8px rgba(0,0,0,.2);}
+#error-banner.visible{transform:translateY(0);}
+.error-banner-inner{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;max-width:1000px;margin:0 auto;}
+.error-icon{font-size:18px;line-height:1.3;flex-shrink:0;}
+.error-text{flex:1;font-size:14px;font-weight:500;word-break:break-word;}
+.error-close{background:rgba(255,255,255,.2);border:none;color:#fff;width:26px;height:26px;border-radius:6px;font-size:16px;flex-shrink:0;}
+.error-close:hover{background:rgba(255,255,255,.35);}
+
+/* Toasts */
+#toast-container{position:fixed;bottom:calc(var(--bottom-h) + 12px);left:0;right:0;z-index:9998;
+  display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;padding:0 12px;}
+@media(min-width:900px){#toast-container{bottom:16px;}}
+.toast{pointer-events:auto;max-width:420px;width:100%;background:var(--navy);color:#fff;padding:12px 16px;
+  border-radius:var(--radius-sm);box-shadow:var(--shadow-lg);font-size:14px;font-weight:500;
+  opacity:0;transform:translateY(8px);transition:opacity .25s,transform .25s;}
+.toast.show{opacity:1;transform:translateY(0);}
+.toast-success{background:#166a45;}
+.toast-error{background:#a82323;}
+.toast-warning{background:#a85e0a;}
+.toast-info{background:var(--navy);}
+
+/* Modal */
+#modal-root{position:fixed;inset:0;z-index:9997;display:none;}
+#modal-root.visible{display:block;}
+.modal-overlay{position:fixed;inset:0;background:rgba(15,25,38,.5);display:flex;align-items:flex-end;justify-content:center;padding:0;}
+@media(min-width:640px){.modal-overlay{align-items:center;padding:20px;}}
+.modal-box{background:#fff;border-radius:14px 14px 0 0;max-width:520px;width:100%;max-height:88vh;overflow-y:auto;
+  padding:20px;box-shadow:var(--shadow-lg);}
+@media(min-width:640px){.modal-box{border-radius:var(--radius);}}
+.modal-title{font-size:17px;margin-bottom:8px;}
+.modal-message{color:var(--text-muted);font-size:14px;margin-bottom:16px;white-space:pre-line;}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;}
+
+/* Layout */
+#app-shell{display:flex;min-height:100vh;}
+.sidebar-desktop{display:none;}
+#app-content{flex:1;min-width:0;padding:14px 14px 24px;max-width:1180px;width:100%;margin:0 auto;}
+@media(min-width:900px){
+  body{padding-bottom:0;}
+  .sidebar-desktop{display:flex;flex-direction:column;width:230px;flex-shrink:0;background:var(--navy);color:#fff;
+    position:sticky;top:0;height:100vh;padding:18px 0;}
+  #app-content{padding:22px 28px 40px;}
+}
+.bottom-nav-mobile{position:fixed;bottom:0;left:0;right:0;height:var(--bottom-h);background:#fff;
+  border-top:1px solid var(--border);display:flex;z-index:500;box-shadow:0 -2px 8px rgba(15,41,66,.06);}
+@media(min-width:900px){.bottom-nav-mobile{display:none;}}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  background:none;border:none;color:var(--text-muted);font-size:11px;padding:6px 2px;}
+.nav-btn svg{width:21px;height:21px;}
+.nav-btn.active{color:var(--primary);}
+.sidebar-desktop .nav-btn{flex-direction:row;justify-content:flex-start;gap:12px;color:#c3d2e3;font-size:14px;
+  padding:11px 20px;font-weight:500;border-radius:0;}
+.sidebar-desktop .nav-btn.active{background:rgba(255,255,255,.1);color:#fff;border-right:3px solid #fff;}
+.sidebar-desktop .nav-btn:hover{color:#fff;}
+.sidebar-brand{padding:4px 20px 18px;color:#fff;font-size:16px;font-weight:700;border-bottom:1px solid rgba(255,255,255,.12);margin-bottom:10px;}
+.sidebar-brand small{display:block;font-weight:400;font-size:11px;color:#9fb3c8;margin-top:2px;}
+.sidebar-footer{margin-top:auto;padding:12px 20px 0;}
+
+/* Top bar */
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:10px;}
+.topbar h1{font-size:20px;}
+.icon-btn{background:#fff;border:1px solid var(--border);width:38px;height:38px;border-radius:var(--radius-sm);
+  display:flex;align-items:center;justify-content:center;color:var(--text-muted);flex-shrink:0;}
+.icon-btn:hover{background:var(--primary-light);color:var(--primary);}
+.icon-btn svg{width:19px;height:19px;}
+
+/* Cards / surfaces */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px;box-shadow:var(--shadow);}
+.card-title{font-size:14px;text-transform:uppercase;letter-spacing:.03em;color:var(--text-muted);margin-bottom:10px;font-weight:700;}
+.grid-stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px;}
+@media(min-width:640px){.grid-stats{grid-template-columns:repeat(3,1fr);}}
+@media(min-width:1100px){.grid-stats{grid-template-columns:repeat(5,1fr);}}
+.stat-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow);}
+.stat-card .label{font-size:12px;color:var(--text-muted);font-weight:600;margin-bottom:6px;}
+.stat-card .value{font-size:20px;font-weight:700;color:var(--navy);word-break:break-word;}
+.stat-card.accent-warn .value{color:var(--warning);}
+.stat-card.accent-danger .value{color:var(--danger);}
+.stat-card.accent-success .value{color:var(--success);}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:none;border-radius:var(--radius-sm);
+  padding:10px 16px;font-size:14px;font-weight:600;background:var(--border);color:var(--text);white-space:nowrap;}
+.btn svg{width:16px;height:16px;}
+.btn-primary{background:var(--primary);color:#fff;}
+.btn-primary:hover{background:var(--primary-dark);}
+.btn-secondary{background:#fff;color:var(--text);border:1px solid var(--border-strong);}
+.btn-secondary:hover{background:var(--bg);}
+.btn-danger{background:var(--danger);color:#fff;}
+.btn-danger:hover{background:#a82020;}
+.btn-success{background:var(--success);color:#fff;}
+.btn-sm{padding:7px 11px;font-size:13px;}
+.btn-block{width:100%;}
+.btn-link{background:none;color:var(--primary);padding:6px 0;font-weight:600;}
+.btn[disabled]{opacity:.55;pointer-events:none;}
+.btn-row{display:flex;flex-wrap:wrap;gap:8px;}
+
+/* Forms */
+.form-group{margin-bottom:14px;}
+.form-row{display:grid;grid-template-columns:1fr;gap:12px;}
+@media(min-width:640px){.form-row.cols-2{grid-template-columns:1fr 1fr;}.form-row.cols-3{grid-template-columns:1fr 1fr 1fr;}}
+label{display:block;font-size:13px;font-weight:600;color:var(--text);margin-bottom:5px;}
+label .optional-tag{font-weight:400;color:var(--text-faint);font-size:12px;}
+label .req{color:var(--danger);}
+.input,input[type=text],input[type=date],input[type=number],select,textarea{
+  width:100%;padding:11px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);
+  background:#fff;font-size:15px;}
+.input:focus,input:focus,select:focus,textarea:focus{outline:2px solid var(--primary);outline-offset:-1px;border-color:var(--primary);}
+textarea{resize:vertical;min-height:64px;}
+.input-invalid{border-color:var(--danger)!important;background:var(--danger-bg);}
+.field-error-msg{display:none;color:var(--danger);font-size:12.5px;margin-top:4px;font-weight:600;}
+.field-with-btn{display:flex;gap:8px;}
+.field-with-btn select{flex:1;}
+.help-text{font-size:12.5px;color:var(--text-muted);margin-top:4px;}
+.readonly-box{background:var(--primary-light);border:1px solid #cfe0f2;border-radius:var(--radius-sm);padding:10px 12px;font-size:14px;}
+.calc-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px;}
+.calc-item{background:var(--primary-light);border-radius:var(--radius-sm);padding:10px 12px;}
+.calc-item .l{font-size:12px;color:var(--text-muted);font-weight:600;}
+.calc-item .v{font-size:16px;font-weight:700;color:var(--navy);}
+.calc-item.total .v{color:var(--primary-dark);font-size:18px;}
+
+/* Badges */
+.badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;white-space:nowrap;}
+.badge-nhap{background:var(--draft-bg);color:var(--draft);}
+.badge-da_dat{background:var(--primary-light);color:var(--primary-dark);}
+.badge-nhap_mot_phan{background:var(--warning-bg);color:var(--warning);}
+.badge-da_nhap_du{background:var(--success-bg);color:var(--success);}
+.badge-da_huy{background:var(--danger-bg);color:var(--danger);}
+
+/* Filters bar */
+.filter-bar{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:14px;
+  display:grid;grid-template-columns:1fr;gap:10px;}
+@media(min-width:760px){.filter-bar{grid-template-columns:repeat(auto-fit,minmax(160px,1fr));align-items:end;}}
+.filter-bar .fg{margin:0;}
+.filter-bar label{font-size:12px;margin-bottom:3px;color:var(--text-muted);}
+
+/* Table */
+.table-wrap{overflow-x:auto;background:#fff;border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);}
+table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:920px;}
+thead th{text-align:left;background:var(--bg);color:var(--text-muted);font-weight:700;font-size:12px;
+  text-transform:uppercase;letter-spacing:.02em;padding:10px 12px;border-bottom:1px solid var(--border);white-space:nowrap;}
+tbody td{padding:10px 12px;border-bottom:1px solid var(--border);white-space:nowrap;}
+tbody tr:last-child td{border-bottom:none;}
+tbody tr:hover{background:var(--bg);}
+.num-cell{text-align:right;font-variant-numeric:tabular-nums;}
+.desktop-only{display:none;}
+.mobile-only{display:block;}
+@media(min-width:900px){.desktop-only{display:block;}.mobile-only{display:none;}}
+
+/* Cards list (mobile orders) */
+.item-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:10px;box-shadow:var(--shadow);}
+.item-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;}
+.item-card-head .po-no{font-weight:700;color:var(--navy);font-size:15px;}
+.item-card .sub{color:var(--text-muted);font-size:13px;}
+.item-card-rows{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;margin:10px 0;font-size:13px;}
+.item-card-rows .l{color:var(--text-muted);}
+.item-card-rows .v{font-weight:600;text-align:right;}
+.item-card-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;}
+
+.empty-state{text-align:center;padding:50px 16px;color:var(--text-muted);}
+.empty-state svg{width:48px;height:48px;color:var(--border-strong);margin-bottom:10px;}
+
+.section-title-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;}
+
+.kv-list{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;}
+@media(min-width:640px){.kv-list{grid-template-columns:1fr 1fr 1fr;}}
+.kv-list .l{font-size:12px;color:var(--text-muted);font-weight:600;}
+.kv-list .v{font-size:14.5px;font-weight:600;}
+
+.detail-header{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+.back-link{display:inline-flex;align-items:center;gap:6px;color:var(--text-muted);font-size:13px;font-weight:600;margin-bottom:10px;background:none;border:none;padding:0;}
+.back-link svg{width:16px;height:16px;}
+
+.tag-loai{display:inline-block;background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:2px 10px;font-size:12px;font-weight:600;color:var(--text-muted);}
+
+#export-render-area{position:absolute;left:-99999px;top:0;width:780px;background:#fff;}
+.phieu{padding:36px;font-family:var(--font);color:#1c2733;background:#fff;}
+.phieu h2{font-size:22px;text-align:center;letter-spacing:.04em;color:var(--navy);margin-bottom:2px;}
+.phieu .phieu-sub{text-align:center;color:var(--text-muted);font-size:12px;margin-bottom:20px;}
+.phieu .phieu-topline{display:flex;justify-content:space-between;margin-bottom:18px;font-size:13.5px;border-bottom:2px solid var(--navy);padding-bottom:12px;}
+.phieu .phieu-section{margin-bottom:16px;}
+.phieu .phieu-section h4{font-size:13px;text-transform:uppercase;color:var(--primary-dark);border-bottom:1px solid var(--border);padding-bottom:5px;margin-bottom:8px;}
+.phieu .kv2{display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;font-size:13.5px;}
+.phieu .kv2 .l{color:var(--text-muted);}
+.phieu table{min-width:0;font-size:12.5px;}
+.phieu table th, .phieu table td{padding:6px 8px;}
+.phieu .total-box{background:var(--primary-light);border-radius:8px;padding:12px 14px;margin-top:10px;}
+.phieu .total-box .row{display:flex;justify-content:space-between;font-size:13.5px;padding:2px 0;}
+.phieu .total-box .row.grand{font-size:16px;font-weight:700;color:var(--primary-dark);border-top:1px solid #cfe0f2;margin-top:6px;padding-top:8px;}
+.phieu .signatures{display:flex;justify-content:space-between;margin-top:36px;text-align:center;}
+.phieu .signatures div{width:45%;font-size:13px;}
+.phieu .sign-line{margin-top:60px;border-top:1px solid #333;padding-top:4px;color:var(--text-muted);font-size:11.5px;}
+
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+</style>
+</head>
+<body>
+<div id="error-banner"><div class="error-banner-inner"></div></div>
+<div id="toast-container"></div>
+<div id="modal-root"></div>
+
+<div id="app-shell">
+  <aside class="sidebar-desktop">
+    <div class="sidebar-brand">Quản Lý Đơn Hàng<small>Ngành sợi &amp; dệt may</small></div>
+    <div id="nav-desktop"></div>
+    <div class="sidebar-footer">
+      <button class="nav-btn" data-section="backup" onclick="location.hash='#/backup'">⚙️ Sao lưu / Dữ liệu</button>
+    </div>
+  </aside>
+  <main id="app-content"></main>
+</div>
+
+<nav class="bottom-nav-mobile" id="nav-mobile"></nav>
+<div id="export-render-area"></div>
+
+<script>
+'use strict';
+
+/* ===================== 1. AN TOÀN & BÁO LỖI TOÀN CỤC ===================== */
+function reportError(message){
+  try{
+    console.error(message);
+    var banner = document.getElementById('error-banner');
+    var inner = banner.querySelector('.error-banner-inner');
+    inner.innerHTML = '<span class="error-icon">⚠️</span><span class="error-text"></span><button class="error-close" aria-label="Đóng" onclick="document.getElementById(\'error-banner\').classList.remove(\'visible\')">×</button>';
+    inner.querySelector('.error-text').textContent = message;
+    banner.classList.add('visible');
+  }catch(e){ /* nothing more we can do */ }
+}
+window.addEventListener('error', function(e){
+  reportError('Lỗi hệ thống: ' + (e && e.message ? e.message : 'Không xác định'));
+});
+window.addEventListener('unhandledrejection', function(e){
+  var msg = (e && e.reason && e.reason.message) ? e.reason.message : String(e && e.reason);
+  reportError('Lỗi xử lý (bất đồng bộ): ' + msg);
+});
+
+/* ===================== 2. LƯU TRỮ DỮ LIỆU (localStorage) ===================== */
+var STORAGE_PREFIX = 'qldh_';
+var Storage = {
+  get: function(key, defVal){
+    try{
+      var raw = localStorage.getItem(STORAGE_PREFIX + key);
+      if (raw === null || raw === undefined) return defVal;
+      var parsed = JSON.parse(raw);
+      return parsed;
+    }catch(err){
+      reportError('Không đọc được dữ liệu "' + key + '": ' + err.message);
+      return defVal;
+    }
+  },
+  set: function(key, value){
+    try{
+      localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(value));
+      return true;
+    }catch(err){
+      var extra = '';
+      if (err && err.name === 'QuotaExceededError') extra = ' (Bộ nhớ trình duyệt đã đầy.)';
+      reportError('KHÔNG LƯU ĐƯỢC dữ liệu "' + key + '": ' + err.message + extra + ' Vui lòng thử lại hoặc sao lưu dữ liệu ngay.');
+      return false;
+    }
+  }
+};
+function checkStorageAvailable(){
+  try{
+    var t = '__qldh_test__';
+    localStorage.setItem(t,'1'); localStorage.removeItem(t);
+    return true;
+  }catch(e){
+    reportError('Trình duyệt của bạn đang chặn lưu trữ dữ liệu (có thể do chế độ ẩn danh / duyệt riêng tư). Ứng dụng sẽ KHÔNG lưu được dữ liệu. Vui lòng mở bằng trình duyệt/thẻ bình thường.');
+    return false;
+  }
+}
+
+function getOrders(){ return Storage.get('orders', []); }
+function saveOrders(v){ return Storage.set('orders', v); }
+function getReceipts(){ return Storage.get('receipts', []); }
+function saveReceipts(v){ return Storage.set('receipts', v); }
+function getSuppliers(){ return Storage.get('suppliers', []); }
+function saveSuppliers(v){ return Storage.set('suppliers', v); }
+function getAddresses(){ return Storage.get('addresses', []); }
+function saveAddresses(v){ return Storage.set('addresses', v); }
+
+/* ===================== 3. TIỆN ÍCH ===================== */
+function uid(){
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return 'id-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+}
+function escapeHtml(str){
+  if (str === null || str === undefined) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function todayISO(){
+  var d = new Date();
+  var m = String(d.getMonth()+1).padStart(2,'0');
+  var day = String(d.getDate()).padStart(2,'0');
+  return d.getFullYear() + '-' + m + '-' + day;
+}
+function formatDateDMY(iso){
+  if (!iso) return '—';
+  var p = iso.split('-');
+  if (p.length !== 3) return iso;
+  return p[2] + '/' + p[1] + '/' + p[0];
+}
+function formatInt(n){
+  if (n === null || n === undefined || isNaN(n)) return '0';
+  return Math.round(n).toLocaleString('vi-VN');
+}
+function formatDec(n, maxDec){
+  if (n === null || n === undefined || isNaN(n)) return '0';
+  maxDec = maxDec === undefined ? 2 : maxDec;
+  return n.toLocaleString('vi-VN', {minimumFractionDigits:0, maximumFractionDigits:maxDec});
+}
+function formatVND(n){
+  if (n === null || n === undefined || isNaN(n)) return '0 đ';
+  return Math.round(n).toLocaleString('vi-VN') + ' đ';
+}
+function parseVNNumber(input){
+  if (input === null || input === undefined) return NaN;
+  var raw = String(input).trim();
+  if (raw === '') return NaN;
+  var s = raw.replace(/\s/g,'');
+  var lastComma = s.lastIndexOf(',');
+  var lastDot = s.lastIndexOf('.');
+  if (lastComma !== -1 && lastDot !== -1){
+    if (lastComma > lastDot){ s = s.replace(/\./g,'').replace(',', '.'); }
+    else { s = s.replace(/,/g,''); }
+  } else if (lastComma !== -1){
+    var commaCount = (s.match(/,/g)||[]).length;
+    if (commaCount > 1) s = s.replace(/,/g,''); else s = s.replace(',', '.');
+  } else if (lastDot !== -1){
+    var dotCount = (s.match(/\./g)||[]).length;
+    if (dotCount > 1) s = s.replace(/\./g,'');
+  }
+  var n = parseFloat(s);
+  return n;
+}
+function isNonNegInt(n){ return !isNaN(n) && isFinite(n) && n >= 0 && Number.isInteger(n); }
+function isNonNegNum(n){ return !isNaN(n) && isFinite(n) && n >= 0; }
+
+var STATUS_LABELS = {nhap:'Nháp', da_dat:'Đã đặt hàng', nhap_mot_phan:'Nhập một phần', da_nhap_du:'Đã nhập đủ', da_huy:'Đã hủy'};
+var VAT_LABELS = {'0':'Không VAT','8':'VAT 8%'};
+var LOAI_DIACHI_LABELS = {xuong_det:'Xưởng dệt hợp tác', kho_chinh:'Kho chính công ty'};
+
+function computeOrderTotals(o){
+  var soThung = Number(o.soThung)||0, coi = Number(o.soCoiTrenThung)||0, ky = Number(o.soKyTrenThung)||0;
+  var tongKy = soThung*ky, tongCoi = soThung*coi;
+  var donGia = Number(o.donGiaKg)||0;
+  var thanhTienTruocVAT = tongKy*donGia;
+  var vatRate = o.vat === '8' ? 0.08 : 0;
+  var tienVAT = thanhTienTruocVAT*vatRate;
+  var tongTien = thanhTienTruocVAT + tienVAT;
+  return {tongKy:tongKy, tongCoi:tongCoi, thanhTienTruocVAT:thanhTienTruocVAT, tienVAT:tienVAT, tongTien:tongTien};
+}
+function getReceiptsByOrder(orderId){
+  return getReceipts().filter(function(r){ return r.orderId === orderId; });
+}
+function sumReceivedThung(orderId){
+  return getReceiptsByOrder(orderId).reduce(function(s,r){ return s + (Number(r.soThungNhap)||0); }, 0);
+}
+function computeRemaining(o){
+  var received = sumReceivedThung(o.id);
+  var soThung = Number(o.soThung)||0;
+  var remainThung = Math.max(0, soThung - received);
+  var ky = Number(o.soKyTrenThung)||0, coi = Number(o.soCoiTrenThung)||0;
+  return {received:received, remainThung:remainThung, remainKy:remainThung*ky, remainCoi:remainThung*coi};
+}
+function computeAutoStatus(o){
+  if (o.trangThai === 'nhap' || o.trangThai === 'da_huy') return o.trangThai;
+  var received = sumReceivedThung(o.id);
+  var soThung = Number(o.soThung)||0;
+  if (received <= 0) return 'da_dat';
+  if (received < soThung) return 'nhap_mot_phan';
+  return 'da_nhap_du';
+}
+function generatePONumber(dateStr){
+  var d = dateStr ? new Date(dateStr + 'T00:00:00') : new Date();
+  if (isNaN(d.getTime())) d = new Date();
+  var y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0');
+  var prefix = 'PO-' + y + m + day + '-';
+  var orders = getOrders();
+  var max = 0;
+  orders.forEach(function(o){
+    if (o.soPO && o.soPO.indexOf(prefix) === 0){
+      var n = parseInt(o.soPO.slice(prefix.length), 10);
+      if (!isNaN(n) && n > max) max = n;
+    }
+  });
+  return prefix + String(max+1).padStart(3,'0');
+}
+
+/* ===================== 4. TOAST ===================== */
+function showToast(message, type){
+  type = type || 'info';
+  var container = document.getElementById('toast-container');
+  var el = document.createElement('div');
+  el.className = 'toast toast-' + type;
+  el.textContent = message;
+  container.appendChild(el);
+  requestAnimationFrame(function(){ el.classList.add('show'); });
+  setTimeout(function(){
+    el.classList.remove('show');
+    setTimeout(function(){ el.remove(); }, 300);
+  }, 3600);
+}
+
+/* ===================== 5. MODAL ===================== */
+function closeModal(){
+  var root = document.getElementById('modal-root');
+  root.classList.remove('visible');
+  root.innerHTML = '';
+}
+function showConfirm(title, message, onConfirm, opts){
+  opts = opts || {};
+  var root = document.getElementById('modal-root');
+  root.innerHTML =
+    '<div class="modal-overlay" id="modal-overlay-el">' +
+      '<div class="modal-box">' +
+        '<h3 class="modal-title"></h3>' +
+        '<p class="modal-message"></p>' +
+        '<div class="modal-actions">' +
+          '<button class="btn btn-secondary" id="modal-cancel-btn">' + escapeHtml(opts.cancelText || 'Hủy') + '</button>' +
+          '<button class="btn ' + (opts.dangerConfirm ? 'btn-danger':'btn-primary') + '" id="modal-confirm-btn">' + escapeHtml(opts.confirmText || 'Xác nhận') + '</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  root.querySelector('.modal-title').textContent = title;
+  root.querySelector('.modal-message').textContent = message;
+  root.classList.add('visible');
+  root.querySelector('#modal-cancel-btn').onclick = function(){ closeModal(); if (opts.onCancel) opts.onCancel(); };
+  root.querySelector('#modal-confirm-btn').onclick = function(){ closeModal(); onConfirm(); };
+  root.querySelector('#modal-overlay-el').addEventListener('click', function(e){ if (e.target === this){ closeModal(); if (opts.onCancel) opts.onCancel(); } });
+}
+function showModalHTML(title, bodyHtml){
+  var root = document.getElementById('modal-root');
+  root.innerHTML =
+    '<div class="modal-overlay" id="modal-overlay-el">' +
+      '<div class="modal-box">' +
+        '<h3 class="modal-title"></h3>' +
+        '<div id="modal-custom-body"></div>' +
+      '</div>' +
+    '</div>';
+  root.querySelector('.modal-title').textContent = title;
+  document.getElementById('modal-custom-body').innerHTML = bodyHtml;
+  root.classList.add('visible');
+  root.querySelector('#modal-overlay-el').addEventListener('click', function(e){ if (e.target === this) closeModal(); });
+}
+
+/* ===================== 6. TRƯỜNG LỖI FORM ===================== */
+function setFieldError(fieldId, message){
+  var input = document.getElementById(fieldId);
+  var errEl = document.getElementById(fieldId + '-error');
+  if (input) input.classList.add('input-invalid');
+  if (errEl){ errEl.textContent = message; errEl.style.display = 'block'; }
+}
+function clearFormErrors(formEl){
+  if (!formEl) return;
+  formEl.querySelectorAll('.input-invalid').forEach(function(el){ el.classList.remove('input-invalid'); });
+  formEl.querySelectorAll('.field-error-msg').forEach(function(el){ el.textContent=''; el.style.display='none'; });
+}
+function focusFirstError(formEl){
+  var el = formEl.querySelector('.input-invalid');
+  if (el && el.focus) el.focus();
+}
+
+/* ===================== 7. ICON SVG ===================== */
+var ICONS = {
+  dashboard:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>',
+  orders:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8L12 3 3 8v8l9 5 9-5V8z"/><path d="M3 8l9 5 9-5"/><path d="M12 13v8"/></svg>',
+  suppliers:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V10l6-4 6 4v11"/><path d="M15 21v-7l6-3v10z"/><path d="M9 21v-4h0"/></svg>',
+  addresses:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 6-9 12-9 12s-9-6-9-12a9 9 0 1 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>',
+  reports:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>',
+  settings:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>',
+  plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  back:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>',
+  edit:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>',
+  trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>',
+  eye:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>',
+  box:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8L12 3 3 8v8l9 5 9-5V8z"/><path d="M3 8l9 5 9-5"/></svg>',
+  download:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>',
+  image:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>',
+  file:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>',
+  search:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>',
+  close:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>',
+  alert:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><circle cx="12" cy="12" r="10"/></svg>',
+  truck:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>'
+};
+
+/* ===================== 8. ĐIỀU HƯỚNG (ROUTER) ===================== */
+var NAV_ITEMS = [
+  {id:'dashboard', label:'Tổng quan', icon:'dashboard', hash:'#/dashboard'},
+  {id:'orders', label:'Đơn hàng', icon:'orders', hash:'#/orders'},
+  {id:'suppliers', label:'Nhà cung cấp', icon:'suppliers', hash:'#/suppliers'},
+  {id:'addresses', label:'Địa chỉ', icon:'addresses', hash:'#/addresses'},
+  {id:'reports', label:'Báo cáo', icon:'reports', hash:'#/reports'}
+];
+function renderNav(){
+  var mobile = document.getElementById('nav-mobile');
+  var desktop = document.getElementById('nav-desktop');
+  mobile.innerHTML = NAV_ITEMS.map(function(n){
+    return '<button class="nav-btn" data-section="' + n.id + '" onclick="location.hash=\'' + n.hash + '\'">' + ICONS[n.icon] + '<span>' + n.label + '</span></button>';
+  }).join('');
+  desktop.innerHTML = NAV_ITEMS.map(function(n){
+    return '<button class="nav-btn" data-section="' + n.id + '" onclick="location.hash=\'' + n.hash + '\'">' + ICONS[n.icon] + '<span>' + n.label + '</span></button>';
+  }).join('');
+}
+function updateActiveNav(section){
+  document.querySelectorAll('.nav-btn').forEach(function(btn){
+    btn.classList.toggle('active', btn.getAttribute('data-section') === section);
+  });
+}
+function parseRoute(){
+  var hash = location.hash || '#/dashboard';
+  hash = hash.replace(/^#\/?/, '');
+  return hash.split('/').filter(Boolean).map(decodeURIComponent);
+}
+function route(){
+  var parts = parseRoute();
+  var content = document.getElementById('app-content');
+  var sec = parts[0] || 'dashboard';
+  updateActiveNav(sec === 'backup' ? 'backup' : sec);
+  try{
+    if (!parts.length || parts[0] === 'dashboard'){ renderDashboardPage(content); }
+    else if (parts[0] === 'orders'){
+      if (parts[1] === 'new') renderOrderFormPage(content, null);
+      else if (parts[1] && parts[2] === 'edit') renderOrderFormPage(content, parts[1]);
+      else if (parts[1] && parts[2] === 'receive') renderOrderDetailPage(content, parts[1], true);
+      else if (parts[1]) renderOrderDetailPage(content, parts[1], false);
+      else renderOrdersListPage(content);
+    }
+    else if (parts[0] === 'suppliers'){
+      if (parts[1] === 'new') renderSupplierFormPage(content, null);
+      else if (parts[1] && parts[2] === 'edit') renderSupplierFormPage(content, parts[1]);
+      else if (parts[1]) renderSupplierDetailPage(content, parts[1]);
+      else renderSuppliersListPage(content);
+    }
+    else if (parts[0] === 'addresses'){
+      if (parts[1] === 'new') renderAddressFormPage(content, null);
+      else if (parts[1] && parts[2] === 'edit') renderAddressFormPage(content, parts[1]);
+      else renderAddressesListPage(content);
+    }
+    else if (parts[0] === 'reports'){ renderReportsPage(content); }
+    else if (parts[0] === 'backup'){ renderBackupPage(content); }
+    else { content.innerHTML = renderNotFound(); }
+  }catch(err){
+    reportError('Lỗi hiển thị trang: ' + err.message);
+    content.innerHTML = '<div class="empty-state"><p>Đã xảy ra lỗi khi hiển thị trang này. Vui lòng thử lại hoặc quay về Tổng quan.</p><button class="btn btn-primary" onclick="location.hash=\'#/dashboard\'" style="margin-top:10px;">Về Tổng quan</button></div>';
+  }
+  window.scrollTo(0,0);
+}
+function renderNotFound(){
+  return '<div class="empty-state"><h3>Không tìm thấy trang</h3><p>Đường dẫn không hợp lệ.</p><button class="btn btn-primary" onclick="location.hash=\'#/dashboard\'">Về Tổng quan</button></div>';
+}
+
+/* ===================== 9. DASHBOARD (TỔNG QUAN) ===================== */
+var dashFilters = {tu:'', den:'', ncc:'', mathang:'', trangthai:''};
+function topbar(title, rightHtml){
+  return '<div class="topbar"><h1>' + escapeHtml(title) + '</h1><div class="btn-row">' + (rightHtml||'') +
+    '<button class="icon-btn" title="Sao lưu / Dữ liệu" onclick="location.hash=\'#/backup\'">' + ICONS.settings + '</button></div></div>';
+}
+function supplierOptionsHtml(selectedId){
+  var list = getSuppliers().slice().sort(function(a,b){ return a.ten.localeCompare(b.ten,'vi'); });
+  var html = '<option value="">— Chọn nhà cung cấp —</option>';
+  list.forEach(function(s){ html += '<option value="' + s.id + '"' + (s.id===selectedId?' selected':'') + '>' + escapeHtml(s.ten) + '</option>'; });
+  return html;
+}
+function addressOptionsHtml(selectedId){
+  var list = getAddresses().slice().sort(function(a,b){ return a.ten.localeCompare(b.ten,'vi'); });
+  var html = '<option value="">— Không chọn —</option>';
+  list.forEach(function(a){ html += '<option value="' + a.id + '"' + (a.id===selectedId?' selected':'') + '>' + escapeHtml(a.ten) + ' (' + LOAI_DIACHI_LABELS[a.loai] + ')</option>'; });
+  return html;
+}
+function applyDashFilters(orders){
+  return orders.filter(function(o){
+    if (dashFilters.tu && o.ngayDatHang < dashFilters.tu) return false;
+    if (dashFilters.den && o.ngayDatHang > dashFilters.den) return false;
+    if (dashFilters.ncc && o.nhaCungCapId !== dashFilters.ncc) return false;
+    if (dashFilters.trangthai && o.trangThai !== dashFilters.trangthai) return false;
+    if (dashFilters.mathang){
+      var q = dashFilters.mathang.toLowerCase();
+      var hay = (o.tenHang||'') + ' ' + (o.maHang||'') + ' ' + (o.hieuSoi||'');
+      if (hay.toLowerCase().indexOf(q) === -1) return false;
+    }
+    return true;
+  });
+}
+function renderDashboardPage(content){
+  var orders = applyDashFilters(getOrders());
+  var totalTien=0,totalTienVAT=0,totalTienTruocVAT=0,totalThung=0,totalKy=0,totalCoi=0;
+  var chuaNhapThung=0, chuaNhapKy=0, chuaNhapCoi=0;
+  var supplierSet = {};
+  orders.forEach(function(o){
+    var t = computeOrderTotals(o);
+    totalThung += Number(o.soThung)||0;
+    totalKy += t.tongKy; totalCoi += t.tongCoi;
+    totalTienTruocVAT += t.thanhTienTruocVAT; totalTienVAT += t.tienVAT; totalTien += t.tongTien;
+    if (o.nhaCungCapId) supplierSet[o.nhaCungCapId] = true;
+    if (o.trangThai === 'da_dat' || o.trangThai === 'nhap_mot_phan'){
+      var rem = computeRemaining(o);
+      chuaNhapThung += rem.remainThung; chuaNhapKy += rem.remainKy; chuaNhapCoi += rem.remainCoi;
+    }
+  });
+  var supplierCount = Object.keys(supplierSet).length;
+  var stats = [
+    {label:'Tổng đơn hàng', value: formatInt(orders.length)},
+    {label:'Tổng số thùng', value: formatInt(totalThung)},
+    {label:'Tổng số ký (KG)', value: formatDec(totalKy,1)},
+    {label:'Tổng số cối', value: formatInt(totalCoi)},
+    {label:'Số nhà cung cấp', value: formatInt(supplierCount)},
+    {label:'Thành tiền trước VAT', value: formatVND(totalTienTruocVAT)},
+    {label:'Tổng tiền VAT', value: formatVND(totalTienVAT)},
+    {label:'Tổng tiền (có VAT)', value: formatVND(totalTien)},
+    {label:'Số thùng chưa nhập', value: formatInt(chuaNhapThung), accent:'warn'},
+    {label:'Số ký chưa nhập', value: formatDec(chuaNhapKy,1), accent:'warn'}
+  ];
+  var html = topbar('Tổng quan');
+  html += '<div class="filter-bar">' +
+    '<div class="fg"><label>Từ ngày</label><input type="date" class="input" value="' + escapeHtml(dashFilters.tu) + '" onchange="dashFilters.tu=this.value; route();"></div>' +
+    '<div class="fg"><label>Đến ngày</label><input type="date" class="input" value="' + escapeHtml(dashFilters.den) + '" onchange="dashFilters.den=this.value; route();"></div>' +
+    '<div class="fg"><label>Nhà cung cấp</label><select class="input" onchange="dashFilters.ncc=this.value; route();">' + ('<option value="">— Tất cả —</option>' + supplierOptionsHtml(dashFilters.ncc).replace('<option value="">— Chọn nhà cung cấp —</option>','')) + '</select></div>' +
+    '<div class="fg"><label>Mặt hàng</label><input type="text" class="input" placeholder="Tên/mã/hiệu hàng" value="' + escapeHtml(dashFilters.mathang) + '" oninput="dashFilters.mathang=this.value; route();"></div>' +
+    '<div class="fg"><label>Trạng thái</label><select class="input" onchange="dashFilters.trangthai=this.value; route();">' + statusOptionsHtml(dashFilters.trangthai, true) + '</select></div>' +
+    '<div class="fg"><button class="btn btn-secondary btn-block" onclick="dashFilters={tu:\'\',den:\'\',ncc:\'\',mathang:\'\',trangthai:\'\'}; route();">Xóa lọc</button></div>' +
+  '</div>';
+  html += '<div class="grid-stats">' + stats.map(function(s){
+    return '<div class="stat-card' + (s.accent ? ' accent-' + s.accent : '') + '"><div class="label">' + s.label + '</div><div class="value">' + s.value + '</div></div>';
+  }).join('') + '</div>';
+  if (!getOrders().length){
+    html += '<div class="card"><p>Chưa có đơn hàng nào. <a href="#/orders/new">Tạo đơn đặt hàng đầu tiên</a>.</p></div>';
+  }
+  content.innerHTML = html;
+}
+function statusOptionsHtml(selected, allowAll){
+  var html = allowAll ? '<option value="">— Tất cả —</option>' : '';
+  Object.keys(STATUS_LABELS).forEach(function(k){
+    html += '<option value="' + k + '"' + (k===selected?' selected':'') + '>' + STATUS_LABELS[k] + '</option>';
+  });
+  return html;
+}
+
+/* ===================== 10. ĐƠN ĐẶT HÀNG: DANH SÁCH ===================== */
+var orderFilters = {q:'', tu:'', den:'', ncc:'', trangthai:''};
+function orderSearchHay(o){
+  var s = getSuppliers().find(function(x){ return x.id===o.nhaCungCapId; });
+  var receiptTxt = getReceiptsByOrder(o.id).map(function(r){ return r.soPhieuGiaoHang||''; }).join(' ');
+  return [o.soPO, s?s.ten:'', o.tenHang, o.maHang, receiptTxt].join(' ').toLowerCase();
+}
+function applyOrderFilters(orders){
+  return orders.filter(function(o){
+    if (orderFilters.tu && o.ngayDatHang < orderFilters.tu) return false;
+    if (orderFilters.den && o.ngayDatHang > orderFilters.den) return false;
+    if (orderFilters.ncc && o.nhaCungCapId !== orderFilters.ncc) return false;
+    if (orderFilters.trangthai && o.trangThai !== orderFilters.trangthai) return false;
+    if (orderFilters.q && orderSearchHay(o).indexOf(orderFilters.q.toLowerCase()) === -1) return false;
+    return true;
+  });
+}
+function renderOrdersListPage(content){
+  var all = getOrders().slice().sort(function(a,b){ return (b.soPO||'').localeCompare(a.soPO||''); });
+  var orders = applyOrderFilters(all);
+  var html = topbar('Đơn đặt hàng', '<button class="btn btn-primary" onclick="location.hash=\'#/orders/new\'">' + ICONS.plus + ' Tạo đơn</button>');
+  html += '<div class="filter-bar">' +
+    '<div class="fg" style="grid-column:1/-1;"><label>Tìm kiếm</label><input type="text" class="input" placeholder="Số PO, nhà cung cấp, tên hàng, mã hàng, số phiếu giao hàng..." value="' + escapeHtml(orderFilters.q) + '" oninput="orderFilters.q=this.value; route();"></div>' +
+    '<div class="fg"><label>Từ ngày</label><input type="date" class="input" value="' + escapeHtml(orderFilters.tu) + '" onchange="orderFilters.tu=this.value; route();"></div>' +
+    '<div class="fg"><label>Đến ngày</label><input type="date" class="input" value="' + escapeHtml(orderFilters.den) + '" onchange="orderFilters.den=this.value; route();"></div>' +
+    '<div class="fg"><label>Nhà cung cấp</label><select class="input" onchange="orderFilters.ncc=this.value; route();"><option value="">— Tất cả —</option>' + supplierOptionsHtml(orderFilters.ncc).replace('<option value="">— Chọn nhà cung cấp —</option>','') + '</select></div>' +
+    '<div class="fg"><label>Trạng thái</label><select class="input" onchange="orderFilters.trangthai=this.value; route();">' + statusOptionsHtml(orderFilters.trangthai, true) + '</select></div>' +
+  '</div>';
+  html += '<div class="btn-row" style="margin-bottom:12px;">' +
+    '<button class="btn btn-secondary btn-sm" onclick="exportOrdersExcel(false)">' + ICONS.download + ' Xuất Excel (theo bộ lọc)</button>' +
+    '<button class="btn btn-secondary btn-sm" onclick="exportOrdersExcel(true)">' + ICONS.download + ' Xuất Excel (tất cả)</button>' +
+    '<button class="btn btn-secondary btn-sm" onclick="exportReceiptsExcel(null)">' + ICONS.download + ' Xuất toàn bộ lần nhận hàng</button>' +
+  '</div>';
+  if (!orders.length){
+    html += '<div class="empty-state">' + ICONS.box + '<h3>Không có đơn hàng phù hợp</h3><p>Thử thay đổi bộ lọc hoặc tạo đơn hàng mới.</p></div>';
+    content.innerHTML = html;
+    return;
+  }
+  // desktop table
+  html += '<div class="table-wrap desktop-only"><table><thead><tr>' +
+    '<th>Số PO</th><th>Ngày đặt</th><th>Nhà cung cấp</th><th>Tên hàng</th><th>Hiệu sợi</th>' +
+    '<th class="num-cell">Thùng</th><th class="num-cell">Cối/T</th><th class="num-cell">KG/T</th>' +
+    '<th class="num-cell">Tổng KG</th><th class="num-cell">Tổng cối</th><th class="num-cell">Đơn giá/KG</th><th>VAT</th>' +
+    '<th class="num-cell">Tổng tiền</th><th>Trạng thái</th><th></th></tr></thead><tbody>';
+  orders.forEach(function(o){ html += orderTableRow(o); });
+  html += '</tbody></table></div>';
+  // mobile cards
+  html += '<div class="mobile-only">';
+  orders.forEach(function(o){ html += orderCard(o); });
+  html += '</div>';
+  content.innerHTML = html;
+}
+function supplierName(id){
+  var s = getSuppliers().find(function(x){ return x.id===id; });
+  return s ? s.ten : '(Không rõ)';
+}
+function orderTableRow(o){
+  var t = computeOrderTotals(o);
+  var status = o.trangThai;
+  return '<tr>' +
+    '<td><a href="#/orders/' + o.id + '">' + escapeHtml(o.soPO) + '</a></td>' +
+    '<td>' + formatDateDMY(o.ngayDatHang) + '</td>' +
+    '<td>' + escapeHtml(supplierName(o.nhaCungCapId)) + '</td>' +
+    '<td>' + escapeHtml(o.tenHang) + '</td>' +
+    '<td>' + escapeHtml(o.hieuSoi||'—') + '</td>' +
+    '<td class="num-cell">' + formatInt(o.soThung) + '</td>' +
+    '<td class="num-cell">' + formatInt(o.soCoiTrenThung) + '</td>' +
+    '<td class="num-cell">' + formatDec(o.soKyTrenThung,2) + '</td>' +
+    '<td class="num-cell">' + formatDec(t.tongKy,1) + '</td>' +
+    '<td class="num-cell">' + formatInt(t.tongCoi) + '</td>' +
+    '<td class="num-cell">' + formatVND(o.donGiaKg) + '</td>' +
+    '<td>' + VAT_LABELS[o.vat] + '</td>' +
+    '<td class="num-cell">' + formatVND(t.tongTien) + '</td>' +
+    '<td><span class="badge badge-' + status + '">' + STATUS_LABELS[status] + '</span></td>' +
+    '<td><div class="btn-row"><button class="btn btn-secondary btn-sm" onclick="location.hash=\'#/orders/' + o.id + '\'">' + ICONS.eye + '</button></div></td>' +
+  '</tr>';
+}
+function orderCard(o){
+  var t = computeOrderTotals(o);
+  return '<div class="item-card">' +
+    '<div class="item-card-head"><div><div class="po-no">' + escapeHtml(o.soPO) + '</div><div class="sub">' + formatDateDMY(o.ngayDatHang) + ' · ' + escapeHtml(supplierName(o.nhaCungCapId)) + '</div></div>' +
+    '<span class="badge badge-' + o.trangThai + '">' + STATUS_LABELS[o.trangThai] + '</span></div>' +
+    '<div class="sub" style="margin-bottom:4px;"><strong style="color:var(--text);">' + escapeHtml(o.tenHang) + '</strong>' + (o.hieuSoi ? ' · ' + escapeHtml(o.hieuSoi) : '') + '</div>' +
+    '<div class="item-card-rows">' +
+      '<div class="l">Số thùng</div><div class="v">' + formatInt(o.soThung) + '</div>' +
+      '<div class="l">Tổng KG</div><div class="v">' + formatDec(t.tongKy,1) + '</div>' +
+      '<div class="l">Tổng cối</div><div class="v">' + formatInt(t.tongCoi) + '</div>' +
+      '<div class="l">Tổng tiền</div><div class="v">' + formatVND(t.tongTien) + '</div>' +
+    '</div>' +
+    '<div class="item-card-actions">' +
+      '<button class="btn btn-secondary btn-sm" onclick="location.hash=\'#/orders/' + o.id + '\'">' + ICONS.eye + ' Xem</button>' +
+      '<button class="btn btn-secondary btn-sm" onclick="location.hash=\'#/orders/' + o.id + '/receive\'">' + ICONS.truck + ' Nhận hàng</button>' +
+    '</div></div>';
+}
+
+/* ===================== 11. ĐƠN ĐẶT HÀNG: FORM TẠO / SỬA ===================== */
+function renderOrderFormPage(content, orderId){
+  var isEdit = !!orderId;
+  var o = isEdit ? getOrders().find(function(x){ return x.id===orderId; }) : null;
+  if (isEdit && !o){
+    content.innerHTML = '<div class="empty-state"><h3>Không tìm thấy đơn hàng</h3><button class="btn btn-primary" onclick="location.hash=\'#/orders\'">Về danh sách</button></div>';
+    return;
+  }
+  o = o || {ngayDatHang: todayISO(), nhaCungCapId:'', diaChiGiaoHangId:'', maHang:'', tenHang:'', hieuSoi:'',
+    soThung:'', soCoiTrenThung:'', soKyTrenThung:'', donGiaKg:'', vat:'0', trangThai:'da_dat', ghiChu:''};
+  var html = '<button class="back-link" onclick="location.hash=\'' + (isEdit ? '#/orders/'+o.id : '#/orders') + '\'">' + ICONS.back + ' Quay lại</button>';
+  html += '<h1 style="margin-bottom:14px;">' + (isEdit ? 'Sửa đơn đặt hàng' : 'Tạo đơn đặt hàng mới') + '</h1>';
+  html += '<form id="order-form" novalidate onsubmit="handleOrderFormSubmit(event,\'' + (isEdit?o.id:'') + '\'); return false;">';
+  html += '<div class="card">';
+  if (isEdit){
+    html += '<div class="form-group"><label>Số PO</label><div class="readonly-box">' + escapeHtml(o.soPO) + '</div></div>';
+  } else {
+    html += '<div class="form-group"><label>Số PO</label><div class="readonly-box" id="po-preview">Sẽ tự động tạo: ' + escapeHtml(generatePONumber(o.ngayDatHang)) + '</div></div>';
+  }
+  html += '<div class="form-row cols-2">';
+  html += '<div class="form-group"><label>Ngày đặt hàng <span class="req">*</span></label>' +
+    '<input type="date" id="f-ngay" class="input" value="' + escapeHtml(o.ngayDatHang) + '" oninput="' + (isEdit?'':'updatePOPreview();') + '">' +
+    '<div class="field-error-msg" id="f-ngay-error"></div></div>';
+  html += '<div class="form-group"><label>Nhà cung cấp <span class="req">*</span></label>' +
+    '<div class="field-with-btn"><select id="f-ncc" class="input">' + supplierOptionsHtml(o.nhaCungCapId) + '</select>' +
+    '<button type="button" class="btn btn-secondary btn-sm" onclick="openQuickAddSupplier(function(id){ document.getElementById(\'f-ncc\').innerHTML = supplierOptionsHtml(id); })">' + ICONS.plus + '</button></div>' +
+    '<div class="field-error-msg" id="f-ncc-error"></div></div>';
+  html += '</div>';
+  html += '<div class="form-group"><label>Địa chỉ giao hàng <span class="optional-tag">(không bắt buộc)</span></label>' +
+    '<div class="field-with-btn"><select id="f-diachi" class="input">' + addressOptionsHtml(o.diaChiGiaoHangId) + '</select>' +
+    '<button type="button" class="btn btn-secondary btn-sm" onclick="openQuickAddAddress(function(id){ document.getElementById(\'f-diachi\').innerHTML = addressOptionsHtml(id); })">' + ICONS.plus + '</button></div></div>';
+  html += '<div class="form-row cols-3">';
+  html += '<div class="form-group"><label>Mã hàng <span class="optional-tag">(không bắt buộc)</span></label><input type="text" id="f-mahang" class="input" value="' + escapeHtml(o.maHang) + '"></div>';
+  html += '<div class="form-group"><label>Tên hàng <span class="req">*</span></label><input type="text" id="f-tenhang" class="input" value="' + escapeHtml(o.tenHang) + '"><div class="field-error-msg" id="f-tenhang-error"></div></div>';
+  html += '<div class="form-group"><label>Hiệu sợi <span class="optional-tag">(không bắt buộc)</span></label><input type="text" id="f-hieusoi" class="input" value="' + escapeHtml(o.hieuSoi) + '" placeholder="VD: Hualon, Formosa"></div>';
+  html += '</div></div>';
+
+  html += '<div class="card"><div class="card-title">Số lượng (theo Thùng)</div>';
+  html += '<div class="form-row cols-3">';
+  html += '<div class="form-group"><label>Số thùng <span class="req">*</span></label><input type="text" inputmode="numeric" id="f-sothung" class="input" value="' + escapeHtml(o.soThung) + '" oninput="recalcOrderFormTotals()"><div class="field-error-msg" id="f-sothung-error"></div></div>';
+  html += '<div class="form-group"><label>Số cối / thùng <span class="req">*</span></label><input type="text" inputmode="numeric" id="f-coi" class="input" value="' + escapeHtml(o.soCoiTrenThung) + '" oninput="recalcOrderFormTotals()"><div class="field-error-msg" id="f-coi-error"></div></div>';
+  html += '<div class="form-group"><label>Số ký / thùng <span class="req">*</span></label><input type="text" inputmode="decimal" id="f-ky" class="input" value="' + escapeHtml(o.soKyTrenThung) + '" oninput="recalcOrderFormTotals()"><div class="field-error-msg" id="f-ky-error"></div></div>';
+  html += '</div>';
+  html += '<div class="calc-grid">' +
+    '<div class="calc-item"><div class="l">Tổng số ký (tự động)</div><div class="v" id="calc-tongky">0</div></div>' +
+    '<div class="calc-item"><div class="l">Tổng số cối (tự động)</div><div class="v" id="calc-tongcoi">0</div></div>' +
+  '</div></div>';
+
+  html += '<div class="card"><div class="card-title">Giá &amp; VAT</div>';
+  html += '<div class="form-row cols-2">';
+  html += '<div class="form-group"><label>Đơn giá / KG (VND) <span class="req">*</span></label><input type="text" inputmode="decimal" id="f-dongia" class="input" value="' + escapeHtml(o.donGiaKg) + '" oninput="recalcOrderFormTotals()"><div class="field-error-msg" id="f-dongia-error"></div></div>';
+  html += '<div class="form-group"><label>VAT</label><select id="f-vat" class="input" onchange="recalcOrderFormTotals()"><option value="0"' + (o.vat!=='8'?' selected':'') + '>Không VAT</option><option value="8"' + (o.vat==='8'?' selected':'') + '>VAT 8%</option></select></div>';
+  html += '</div>';
+  html += '<div class="calc-grid" style="grid-template-columns:1fr;">' +
+    '<div class="calc-item"><div class="l">Thành tiền trước VAT</div><div class="v" id="calc-truocvat">0 đ</div></div>' +
+    '<div class="calc-item"><div class="l">Tiền VAT</div><div class="v" id="calc-tienvat">0 đ</div></div>' +
+    '<div class="calc-item total"><div class="l">Tổng tiền</div><div class="v" id="calc-tongtien">0 đ</div></div>' +
+  '</div></div>';
+
+  html += '<div class="card"><div class="card-title">Khác</div>';
+  html += '<div class="form-group"><label>Trạng thái</label><select id="f-trangthai" class="input">' + statusOptionsHtml(o.trangThai, false) + '</select><div class="help-text">Trạng thái sẽ tự động cập nhật theo số lượng đã nhận (trừ khi chọn "Nháp" hoặc "Đã hủy").</div></div>';
+  html += '<div class="form-group"><label>Ghi chú <span class="optional-tag">(không bắt buộc)</span></label><textarea id="f-ghichu" class="input">' + escapeHtml(o.ghiChu) + '</textarea></div>';
+  html += '</div>';
+
+  html += '<div class="btn-row"><button type="submit" class="btn btn-primary">Lưu đơn hàng</button>' +
+    '<button type="button" class="btn btn-secondary" onclick="location.hash=\'' + (isEdit ? '#/orders/'+o.id : '#/orders') + '\'">Hủy</button></div>';
+  html += '</form>';
+  content.innerHTML = html;
+  recalcOrderFormTotals();
+}
+function updatePOPreview(){
+  var el = document.getElementById('po-preview');
+  if (el) el.textContent = 'Sẽ tự động tạo: ' + generatePONumber(document.getElementById('f-ngay').value);
+}
+function recalcOrderFormTotals(){
+  var soThung = parseVNNumber(document.getElementById('f-sothung').value);
+  var coi = parseVNNumber(document.getElementById('f-coi').value);
+  var ky = parseVNNumber(document.getElementById('f-ky').value);
+  var donGia = parseVNNumber(document.getElementById('f-dongia').value);
+  var vat = document.getElementById('f-vat').value;
+  var stV = isNaN(soThung)?0:soThung, coiV = isNaN(coi)?0:coi, kyV = isNaN(ky)?0:ky, giaV = isNaN(donGia)?0:donGia;
+  var tongKy = stV*kyV, tongCoi = stV*coiV;
+  var truocVAT = tongKy*giaV;
+  var tienVAT = truocVAT*(vat==='8'?0.08:0);
+  document.getElementById('calc-tongky').textContent = formatDec(tongKy,2) + ' kg';
+  document.getElementById('calc-tongcoi').textContent = formatInt(tongCoi) + ' cối';
+  document.getElementById('calc-truocvat').textContent = formatVND(truocVAT);
+  document.getElementById('calc-tienvat').textContent = formatVND(tienVAT);
+  document.getElementById('calc-tongtien').textContent = formatVND(truocVAT+tienVAT);
+}
+function handleOrderFormSubmit(event, orderId){
+  event.preventDefault();
+  var form = document.getElementById('order-form');
+  clearFormErrors(form);
+  var ngay = document.getElementById('f-ngay').value;
+  var ncc = document.getElementById('f-ncc').value;
+  var diachi = document.getElementById('f-diachi').value;
+  var mahang = document.getElementById('f-mahang').value.trim();
+  var tenhang = document.getElementById('f-tenhang').value.trim();
+  var hieusoi = document.getElementById('f-hieusoi').value.trim();
+  var soThung = parseVNNumber(document.getElementById('f-sothung').value);
+  var coi = parseVNNumber(document.getElementById('f-coi').value);
+  var ky = parseVNNumber(document.getElementById('f-ky').value);
+  var donGia = parseVNNumber(document.getElementById('f-dongia').value);
+  var vat = document.getElementById('f-vat').value;
+  var trangthai = document.getElementById('f-trangthai').value;
+  var ghichu = document.getElementById('f-ghichu').value.trim();
+
+  var ok = true;
+  if (!ngay){ setFieldError('f-ngay','Vui lòng chọn ngày đặt hàng.'); ok=false; }
+  if (!ncc){ setFieldError('f-ncc','Vui lòng chọn nhà cung cấp.'); ok=false; }
+  if (!tenhang){ setFieldError('f-tenhang','Vui lòng nhập tên hàng.'); ok=false; }
+  if (document.getElementById('f-sothung').value.trim()===''){ setFieldError('f-sothung','Vui lòng nhập số thùng.'); ok=false; }
+  else if (!isNonNegInt(soThung)){ setFieldError('f-sothung','Số thùng phải là số nguyên, không âm.'); ok=false; }
+  if (document.getElementById('f-coi').value.trim()===''){ setFieldError('f-coi','Vui lòng nhập số cối/thùng.'); ok=false; }
+  else if (!isNonNegInt(coi)){ setFieldError('f-coi','Số cối/thùng phải là số nguyên, không âm.'); ok=false; }
+  if (document.getElementById('f-ky').value.trim()===''){ setFieldError('f-ky','Vui lòng nhập số ký/thùng.'); ok=false; }
+  else if (!isNonNegNum(ky)){ setFieldError('f-ky','Số ký/thùng phải là số không âm.'); ok=false; }
+  if (document.getElementById('f-dongia').value.trim()===''){ setFieldError('f-dongia','Vui lòng nhập đơn giá/KG.'); ok=false; }
+  else if (!isNonNegNum(donGia)){ setFieldError('f-dongia','Đơn giá/KG phải là số không âm.'); ok=false; }
+
+  if (!ok){
+    showToast('Vui lòng kiểm tra lại các trường được đánh dấu đỏ.', 'error');
+    focusFirstError(form);
+    return;
+  }
+
+  var orders = getOrders();
+  if (orderId){
+    var idx = orders.findIndex(function(x){ return x.id===orderId; });
+    if (idx === -1){ showToast('Không tìm thấy đơn hàng để cập nhật.', 'error'); return; }
+    var existing = orders[idx];
+    var updated = Object.assign({}, existing, {
+      ngayDatHang: ngay, nhaCungCapId: ncc, diaChiGiaoHangId: diachi || '', maHang: mahang, tenHang: tenhang, hieuSoi: hieusoi,
+      soThung: soThung, soCoiTrenThung: coi, soKyTrenThung: ky, donGiaKg: donGia, vat: vat, trangThai: trangthai, ghiChu: ghichu,
+      updatedAt: new Date().toISOString()
+    });
+    updated.trangThai = computeAutoStatus(updated);
+    orders[idx] = updated;
+    if (!saveOrders(orders)) return;
+    showToast('Đã cập nhật đơn hàng ' + updated.soPO + '.', 'success');
+    location.hash = '#/orders/' + updated.id;
+  } else {
+    var soPO = generatePONumber(ngay);
+    var newOrder = {
+      id: uid(), soPO: soPO, ngayDatHang: ngay, nhaCungCapId: ncc, diaChiGiaoHangId: diachi || '',
+      maHang: mahang, tenHang: tenhang, hieuSoi: hieusoi, soThung: soThung, soCoiTrenThung: coi, soKyTrenThung: ky,
+      donGiaKg: donGia, vat: vat, trangThai: trangthai, ghiChu: ghichu,
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+    };
+    newOrder.trangThai = computeAutoStatus(newOrder);
+    orders.push(newOrder);
+    if (!saveOrders(orders)) return;
+    showToast('Đã tạo đơn hàng ' + newOrder.soPO + '.', 'success');
+    location.hash = '#/orders/' + newOrder.id;
+  }
+}
+function handleDeleteOrder(orderId){
+  var o = getOrders().find(function(x){ return x.id===orderId; });
+  if (!o) return;
+  showConfirm('Xóa đơn hàng', 'Bạn có chắc muốn xóa đơn hàng ' + o.soPO + '? Toàn bộ lịch sử nhận hàng của đơn này cũng sẽ bị xóa. Hành động này không thể hoàn tác.', function(){
+    var orders = getOrders().filter(function(x){ return x.id!==orderId; });
+    var receipts = getReceipts().filter(function(x){ return x.orderId!==orderId; });
+    if (!saveOrders(orders)) return;
+    if (!saveReceipts(receipts)) return;
+    showToast('Đã xóa đơn hàng ' + o.soPO + '.', 'success');
+    location.hash = '#/orders';
+  }, {confirmText:'Xóa', dangerConfirm:true});
+}
+
+/* ===================== 12. ĐƠN ĐẶT HÀNG: CHI TIẾT + NHẬN HÀNG ===================== */
+function renderOrderDetailPage(content, orderId, openReceive){
+  var o = getOrders().find(function(x){ return x.id===orderId; });
+  if (!o){
+    content.innerHTML = '<div class="empty-state"><h3>Không tìm thấy đơn hàng</h3><button class="btn btn-primary" onclick="location.hash=\'#/orders\'">Về danh sách</button></div>';
+    return;
+  }
+  var t = computeOrderTotals(o);
+  var rem = computeRemaining(o);
+  var supplier = getSuppliers().find(function(x){ return x.id===o.nhaCungCapId; });
+  var addr = getAddresses().find(function(x){ return x.id===o.diaChiGiaoHangId; });
+  var receipts = getReceiptsByOrder(o.id).slice().sort(function(a,b){ return (a.ngayNhap||'').localeCompare(b.ngayNhap||''); });
+
+  var html = '<button class="back-link" onclick="location.hash=\'#/orders\'">' + ICONS.back + ' Quay lại danh sách</button>';
+  html += '<div class="detail-header"><div><h1>' + escapeHtml(o.soPO) + '</h1><div class="sub" style="color:var(--text-muted);">Ngày đặt hàng: ' + formatDateDMY(o.ngayDatHang) + '</div></div>' +
+    '<span class="badge badge-' + o.trangThai + '" style="font-size:13px;padding:6px 14px;">' + STATUS_LABELS[o.trangThai] + '</span></div>';
+
+  html += '<div class="btn-row" style="margin-bottom:14px;">' +
+    '<button class="btn btn-primary" onclick="location.hash=\'#/orders/' + o.id + '/receive\'">' + ICONS.truck + ' Nhận hàng</button>' +
+    '<button class="btn btn-secondary" onclick="location.hash=\'#/orders/' + o.id + '/edit\'">' + ICONS.edit + ' Sửa</button>' +
+    '<button class="btn btn-secondary" onclick="exportOrderJPEG(\'' + o.id + '\')">' + ICONS.image + ' Xuất JPEG</button>' +
+    '<button class="btn btn-secondary" onclick="exportOrderPDF(\'' + o.id + '\')">' + ICONS.file + ' Xuất PDF</button>' +
+    '<button class="btn btn-danger" onclick="handleDeleteOrder(\'' + o.id + '\')">' + ICONS.trash + ' Xóa</button>' +
+  '</div>';
+
+  html += '<div class="card"><div class="card-title">Thông tin chung</div><div class="kv-list">' +
+    '<div><div class="l">Nhà cung cấp</div><div class="v">' + (supplier ? '<a href="#/suppliers/'+supplier.id+'">'+escapeHtml(supplier.ten)+'</a>' : '(Không rõ)') + '</div></div>' +
+    '<div><div class="l">Địa chỉ giao hàng</div><div class="v">' + (addr ? escapeHtml(addr.ten) : 'Chưa chọn') + '</div></div>' +
+    '<div><div class="l">Mã hàng</div><div class="v">' + escapeHtml(o.maHang||'—') + '</div></div>' +
+    '<div><div class="l">Tên hàng</div><div class="v">' + escapeHtml(o.tenHang) + '</div></div>' +
+    '<div><div class="l">Hiệu sợi</div><div class="v">' + escapeHtml(o.hieuSoi||'—') + '</div></div>' +
+  '</div>' + (o.ghiChu ? '<div style="margin-top:10px;"><div class="l" style="font-size:12px;color:var(--text-muted);font-weight:600;">Ghi chú</div><div>' + escapeHtml(o.ghiChu) + '</div></div>' : '') + '</div>';
+
+  html += '<div class="card"><div class="card-title">Số lượng &amp; giá trị đặt hàng</div><div class="kv-list">' +
+    '<div><div class="l">Số thùng</div><div class="v">' + formatInt(o.soThung) + '</div></div>' +
+    '<div><div class="l">Số cối/thùng</div><div class="v">' + formatInt(o.soCoiTrenThung) + '</div></div>' +
+    '<div><div class="l">Số ký/thùng</div><div class="v">' + formatDec(o.soKyTrenThung,2) + '</div></div>' +
+    '<div><div class="l">Tổng số ký</div><div class="v">' + formatDec(t.tongKy,2) + ' kg</div></div>' +
+    '<div><div class="l">Tổng số cối</div><div class="v">' + formatInt(t.tongCoi) + '</div></div>' +
+    '<div><div class="l">Đơn giá/KG</div><div class="v">' + formatVND(o.donGiaKg) + '</div></div>' +
+    '<div><div class="l">VAT</div><div class="v">' + VAT_LABELS[o.vat] + '</div></div>' +
+    '<div><div class="l">Thành tiền trước VAT</div><div class="v">' + formatVND(t.thanhTienTruocVAT) + '</div></div>' +
+    '<div><div class="l">Tiền VAT</div><div class="v">' + formatVND(t.tienVAT) + '</div></div>' +
+    '<div><div class="l" style="color:var(--primary-dark);">Tổng tiền</div><div class="v" style="color:var(--primary-dark);font-size:16px;">' + formatVND(t.tongTien) + '</div></div>' +
+  '</div></div>';
+
+  html += '<div class="card"><div class="card-title">Số lượng còn lại</div><div class="kv-list">' +
+    '<div><div class="l">Đã nhận</div><div class="v">' + formatInt(rem.received) + ' thùng</div></div>' +
+    '<div><div class="l">Số thùng còn lại</div><div class="v">' + formatInt(rem.remainThung) + '</div></div>' +
+    '<div><div class="l">Tổng ký còn lại</div><div class="v">' + formatDec(rem.remainKy,2) + ' kg</div></div>' +
+    '<div><div class="l">Tổng cối còn lại</div><div class="v">' + formatInt(rem.remainCoi) + '</div></div>' +
+  '</div></div>';
+
+  html += '<div class="section-title-row"><h3>Lịch sử nhận hàng</h3></div>';
+  if (!receipts.length){
+    html += '<div class="card" style="text-align:center;color:var(--text-muted);">Chưa nhận hàng lần nào.</div>';
+  } else {
+    html += '<div class="table-wrap"><table><thead><tr><th>Ngày nhập</th><th class="num-cell">Số thùng</th><th class="num-cell">Cối/thùng</th><th class="num-cell">Ký/thùng</th><th class="num-cell">Tổng ký</th><th class="num-cell">Tổng cối</th><th>Số phiếu GH</th><th>Ghi chú</th><th></th></tr></thead><tbody>';
+    receipts.forEach(function(r){
+      var rTongKy = (Number(r.soThungNhap)||0)*(Number(r.soKyTrenThung)||0);
+      var rTongCoi = (Number(r.soThungNhap)||0)*(Number(r.soCoiTrenThung)||0);
+      html += '<tr><td>' + formatDateDMY(r.ngayNhap) + '</td><td class="num-cell">' + formatInt(r.soThungNhap) + '</td><td class="num-cell">' + formatInt(r.soCoiTrenThung) + '</td><td class="num-cell">' + formatDec(r.soKyTrenThung,2) + '</td><td class="num-cell">' + formatDec(rTongKy,2) + '</td><td class="num-cell">' + formatInt(rTongCoi) + '</td><td>' + escapeHtml(r.soPhieuGiaoHang||'—') + '</td><td>' + escapeHtml(r.ghiChu||'—') + '</td>' +
+        '<td><button class="btn btn-danger btn-sm" onclick="handleDeleteReceipt(\'' + r.id + '\',\'' + o.id + '\')">' + ICONS.trash + '</button></td></tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+  content.innerHTML = html;
+  if (openReceive) openReceiveModal(o.id);
+}
+function handleDeleteReceipt(receiptId, orderId){
+  showConfirm('Xóa lần nhận hàng', 'Bạn có chắc muốn xóa lần nhận hàng này? Trạng thái đơn hàng sẽ được tính lại.', function(){
+    var receipts = getReceipts().filter(function(x){ return x.id!==receiptId; });
+    if (!saveReceipts(receipts)) return;
+    recalcOrderStatus(orderId);
+    showToast('Đã xóa lần nhận hàng.', 'success');
+    renderOrderDetailPage(document.getElementById('app-content'), orderId, false);
+  }, {confirmText:'Xóa', dangerConfirm:true});
+}
+function recalcOrderStatus(orderId){
+  var orders = getOrders();
+  var idx = orders.findIndex(function(x){ return x.id===orderId; });
+  if (idx === -1) return;
+  orders[idx].trangThai = computeAutoStatus(orders[idx]);
+  saveOrders(orders);
+}
+
+function openReceiveModal(orderId){
+  var o = getOrders().find(function(x){ return x.id===orderId; });
+  if (!o) return;
+  var rem = computeRemaining(o);
+  var bodyHtml = '<form id="receive-form" novalidate onsubmit="handleReceiveSubmit(event,\'' + orderId + '\'); return false;">' +
+    '<p class="help-text" style="margin-bottom:12px;">Đơn hàng <strong>' + escapeHtml(o.soPO) + '</strong> — còn lại <strong>' + formatInt(rem.remainThung) + '</strong> thùng.</p>' +
+    '<div class="form-row cols-2">' +
+    '<div class="form-group"><label>Ngày nhập <span class="req">*</span></label><input type="date" id="r-ngay" class="input" value="' + todayISO() + '"><div class="field-error-msg" id="r-ngay-error"></div></div>' +
+    '<div class="form-group"><label>Số thùng nhập <span class="req">*</span></label><input type="text" inputmode="numeric" id="r-sothung" class="input" oninput="recalcReceiveTotals(\'' + orderId + '\')"><div class="field-error-msg" id="r-sothung-error"></div></div>' +
+    '</div>' +
+    '<div class="form-row cols-2">' +
+    '<div class="form-group"><label>Số cối/thùng</label><input type="text" inputmode="numeric" id="r-coi" class="input" value="' + escapeHtml(o.soCoiTrenThung) + '" oninput="recalcReceiveTotals(\'' + orderId + '\')"></div>' +
+    '<div class="form-group"><label>Số ký/thùng</label><input type="text" inputmode="decimal" id="r-ky" class="input" value="' + escapeHtml(o.soKyTrenThung) + '" oninput="recalcReceiveTotals(\'' + orderId + '\')"></div>' +
+    '</div>' +
+    '<div class="calc-grid">' +
+      '<div class="calc-item"><div class="l">Tổng ký nhập</div><div class="v" id="r-calc-ky">0 kg</div></div>' +
+      '<div class="calc-item"><div class="l">Tổng cối nhập</div><div class="v" id="r-calc-coi">0 cối</div></div>' +
+    '</div>' +
+    '<div class="form-group" style="margin-top:12px;"><label>Số phiếu giao hàng <span class="optional-tag">(không bắt buộc)</span></label><input type="text" id="r-sophieu" class="input"></div>' +
+    '<div class="form-group"><label>Ghi chú <span class="optional-tag">(không bắt buộc)</span></label><textarea id="r-ghichu" class="input"></textarea></div>' +
+    '<div class="modal-actions"><button type="button" class="btn btn-secondary" onclick="closeModal(); location.hash=\'#/orders/' + orderId + '\';">Hủy</button><button type="submit" class="btn btn-primary">Ghi nhận nhập hàng</button></div>' +
+    '</form>';
+  showModalHTML('Nhận hàng', bodyHtml);
+  recalcReceiveTotals(orderId);
+}
+function recalcReceiveTotals(orderId){
+  var st = parseVNNumber(document.getElementById('r-sothung').value);
+  var coi = parseVNNumber(document.getElementById('r-coi').value);
+  var ky = parseVNNumber(document.getElementById('r-ky').value);
+  var stV = isNaN(st)?0:st, coiV = isNaN(coi)?0:coi, kyV = isNaN(ky)?0:ky;
+  document.getElementById('r-calc-ky').textContent = formatDec(stV*kyV,2) + ' kg';
+  document.getElementById('r-calc-coi').textContent = formatInt(stV*coiV) + ' cối';
+}
+function handleReceiveSubmit(event, orderId){
+  event.preventDefault();
+  var form = document.getElementById('receive-form');
+  clearFormErrors(form);
+  var ngay = document.getElementById('r-ngay').value;
+  var soThung = parseVNNumber(document.getElementById('r-sothung').value);
+  var coi = parseVNNumber(document.getElementById('r-coi').value);
+  var ky = parseVNNumber(document.getElementById('r-ky').value);
+  var sophieu = document.getElementById('r-sophieu').value.trim();
+  var ghichu = document.getElementById('r-ghichu').value.trim();
+
+  var ok = true;
+  if (!ngay){ setFieldError('r-ngay','Vui lòng chọn ngày nhập.'); ok=false; }
+  if (document.getElementById('r-sothung').value.trim()===''){ setFieldError('r-sothung','Vui lòng nhập số thùng.'); ok=false; }
+  else if (!isNonNegInt(soThung) || soThung<=0){ setFieldError('r-sothung','Số thùng nhập phải là số nguyên lớn hơn 0.'); ok=false; }
+  if (!isNonNegInt(coi)){ setFieldError('r-coi','Số cối/thùng phải là số nguyên, không âm.'); ok=false; }
+  if (!isNonNegNum(ky)){ setFieldError('r-ky','Số ký/thùng phải là số không âm.'); ok=false; }
+  if (!ok){ showToast('Vui lòng kiểm tra lại các trường được đánh dấu đỏ.', 'error'); focusFirstError(form); return; }
+
+  var o = getOrders().find(function(x){ return x.id===orderId; });
+  if (!o){ showToast('Không tìm thấy đơn hàng.', 'error'); return; }
+  var rem = computeRemaining(o);
+  var pending = {orderId: orderId, ngayNhap: ngay, soThungNhap: soThung, soCoiTrenThung: coi, soKyTrenThung: ky, soPhieuGiaoHang: sophieu, ghiChu: ghichu};
+
+  if (soThung > rem.remainThung){
+    showConfirm('Nhập vượt số lượng còn lại', 'Số thùng nhập (' + formatInt(soThung) + ') vượt quá số thùng còn lại (' + formatInt(rem.remainThung) + ') của đơn hàng ' + o.soPO + '. Bạn có chắc vẫn muốn ghi nhận nhập vượt số lượng?', function(){
+      doSaveReceipt(pending);
+    }, {confirmText:'Vẫn ghi nhận', cancelText:'Hủy', dangerConfirm:true, onCancel:function(){ openReceiveModal(orderId); }});
+  } else {
+    doSaveReceipt(pending);
+  }
+}
+function doSaveReceipt(pending){
+  var receipts = getReceipts();
+  var newReceipt = Object.assign({id: uid(), createdAt: new Date().toISOString()}, pending);
+  receipts.push(newReceipt);
+  if (!saveReceipts(receipts)) return;
+  recalcOrderStatus(pending.orderId);
+  closeModal();
+  showToast('Đã ghi nhận nhập hàng.', 'success');
+  location.hash = '#/orders/' + pending.orderId;
+  renderOrderDetailPage(document.getElementById('app-content'), pending.orderId, false);
+}
+
+/* ===================== 13. THÊM NHANH NCC / ĐỊA CHỈ TRONG FORM ===================== */
+function openQuickAddSupplier(onDone){
+  var bodyHtml = '<form id="quick-supplier-form" novalidate onsubmit="handleQuickAddSupplier(event); return false;">' +
+    '<div class="form-group"><label>Tên nhà cung cấp <span class="req">*</span></label><input type="text" id="qs-ten" class="input"><div class="field-error-msg" id="qs-ten-error"></div></div>' +
+    '<div class="form-row cols-2">' +
+    '<div class="form-group"><label>Người liên hệ</label><input type="text" id="qs-lienhe" class="input"></div>' +
+    '<div class="form-group"><label>Số điện thoại</label><input type="text" inputmode="tel" id="qs-dienthoai" class="input"></div>' +
+    '</div>' +
+    '<div class="form-group"><label>Email</label><input type="text" inputmode="email" id="qs-email" class="input"></div>' +
+    '<div class="form-group"><label>Địa chỉ</label><input type="text" id="qs-diachi" class="input"></div>' +
+    '<div class="modal-actions"><button type="button" class="btn btn-secondary" onclick="closeModal()">Hủy</button><button type="submit" class="btn btn-primary">Thêm nhà cung cấp</button></div>' +
+    '</form>';
+  showModalHTML('Thêm nhà cung cấp mới', bodyHtml);
+  window.__quickAddSupplierCallback = onDone;
+}
+function handleQuickAddSupplier(event){
+  event.preventDefault();
+  var form = document.getElementById('quick-supplier-form');
+  clearFormErrors(form);
+  var ten = document.getElementById('qs-ten').value.trim();
+  if (!ten){ setFieldError('qs-ten','Vui lòng nhập tên nhà cung cấp.'); showToast('Vui lòng kiểm tra lại thông tin.', 'error'); return; }
+  var s = {id: uid(), ten: ten, nguoiLienHe: document.getElementById('qs-lienhe').value.trim(),
+    soDienThoai: document.getElementById('qs-dienthoai').value.trim(), email: document.getElementById('qs-email').value.trim(),
+    diaChi: document.getElementById('qs-diachi').value.trim(), ghiChu:'', createdAt: new Date().toISOString()};
+  var list = getSuppliers(); list.push(s);
+  if (!saveSuppliers(list)) return;
+  closeModal();
+  showToast('Đã thêm nhà cung cấp "' + s.ten + '".', 'success');
+  if (window.__quickAddSupplierCallback) window.__quickAddSupplierCallback(s.id);
+}
+function openQuickAddAddress(onDone){
+  var bodyHtml = '<form id="quick-address-form" novalidate onsubmit="handleQuickAddAddress(event); return false;">' +
+    '<div class="form-group"><label>Tên xưởng/kho <span class="req">*</span></label><input type="text" id="qa-ten" class="input"><div class="field-error-msg" id="qa-ten-error"></div></div>' +
+    '<div class="form-group"><label>Loại</label><select id="qa-loai" class="input"><option value="xuong_det">Xưởng dệt hợp tác</option><option value="kho_chinh">Kho chính công ty</option></select></div>' +
+    '<div class="form-group"><label>Địa chỉ</label><input type="text" id="qa-diachi" class="input"></div>' +
+    '<div class="form-row cols-2">' +
+    '<div class="form-group"><label>Người liên hệ</label><input type="text" id="qa-lienhe" class="input"></div>' +
+    '<div class="form-group"><label>Số điện thoại</label><input type="text" inputmode="tel" id="qa-dienthoai" class="input"></div>' +
+    '</div>' +
+    '<div class="modal-actions"><button type="button" class="btn btn-secondary" onclick="closeModal()">Hủy</button><button type="submit" class="btn btn-primary">Thêm địa chỉ</button></div>' +
+    '</form>';
+  showModalHTML('Thêm địa chỉ giao hàng mới', bodyHtml);
+  window.__quickAddAddressCallback = onDone;
+}
+function handleQuickAddAddress(event){
+  event.preventDefault();
+  var form = document.getElementById('quick-address-form');
+  clearFormErrors(form);
+  var ten = document.getElementById('qa-ten').value.trim();
+  if (!ten){ setFieldError('qa-ten','Vui lòng nhập tên xưởng/kho.'); showToast('Vui lòng kiểm tra lại thông tin.', 'error'); return; }
+  var a = {id: uid(), ten: ten, loai: document.getElementById('qa-loai').value, diaChi: document.getElementById('qa-diachi').value.trim(),
+    nguoiLienHe: document.getElementById('qa-lienhe').value.trim(), soDienThoai: document.getElementById('qa-dienthoai').value.trim(),
+    ghiChu:'', createdAt: new Date().toISOString()};
+  var list = getAddresses(); list.push(a);
+  if (!saveAddresses(list)) return;
+  closeModal();
+  showToast('Đã thêm địa chỉ "' + a.ten + '".', 'success');
+  if (window.__quickAddAddressCallback) window.__quickAddAddressCallback(a.id);
+}
+
+/* ===================== 14. NHÀ CUNG CẤP: DANH SÁCH / FORM / CHI TIẾT ===================== */
+var supplierSearchQ = '';
+function renderSuppliersListPage(content){
+  var list = getSuppliers().slice().sort(function(a,b){ return a.ten.localeCompare(b.ten,'vi'); });
+  if (supplierSearchQ){
+    var q = supplierSearchQ.toLowerCase();
+    list = list.filter(function(s){ return (s.ten+' '+(s.nguoiLienHe||'')+' '+(s.soDienThoai||'')).toLowerCase().indexOf(q)!==-1; });
+  }
+  var html = topbar('Nhà cung cấp', '<button class="btn btn-primary" onclick="location.hash=\'#/suppliers/new\'">' + ICONS.plus + ' Thêm nhà cung cấp</button>');
+  html += '<div class="filter-bar"><div class="fg" style="grid-column:1/-1;"><label>Tìm kiếm</label><input type="text" class="input" placeholder="Tên, người liên hệ, số điện thoại..." value="' + escapeHtml(supplierSearchQ) + '" oninput="supplierSearchQ=this.value; route();"></div></div>';
+  if (!list.length){
+    html += '<div class="empty-state">' + ICONS.suppliers + '<h3>Chưa có nhà cung cấp</h3><p>Thêm nhà cung cấp để bắt đầu tạo đơn hàng.</p></div>';
+    content.innerHTML = html; return;
+  }
+  html += '<div class="mobile-only">';
+  list.forEach(function(s){
+    var stats = supplierStats(s.id);
+    html += '<div class="item-card"><div class="item-card-head"><div><div class="po-no">' + escapeHtml(s.ten) + '</div><div class="sub">' + escapeHtml(s.nguoiLienHe||'—') + (s.soDienThoai ? ' · '+escapeHtml(s.soDienThoai) : '') + '</div></div></div>' +
+      '<div class="item-card-rows"><div class="l">Số đơn hàng</div><div class="v">' + stats.count + '</div><div class="l">Tổng tiền</div><div class="v">' + formatVND(stats.tongTien) + '</div></div>' +
+      '<div class="item-card-actions"><button class="btn btn-secondary btn-sm" onclick="location.hash=\'#/suppliers/' + s.id + '\'">' + ICONS.eye + ' Xem</button></div></div>';
+  });
+  html += '</div>';
+  html += '<div class="table-wrap desktop-only"><table><thead><tr><th>Tên nhà cung cấp</th><th>Người liên hệ</th><th>Điện thoại</th><th>Email</th><th class="num-cell">Số đơn</th><th class="num-cell">Tổng tiền</th><th></th></tr></thead><tbody>';
+  list.forEach(function(s){
+    var stats = supplierStats(s.id);
+    html += '<tr><td><a href="#/suppliers/' + s.id + '">' + escapeHtml(s.ten) + '</a></td><td>' + escapeHtml(s.nguoiLienHe||'—') + '</td><td>' + escapeHtml(s.soDienThoai||'—') + '</td><td>' + escapeHtml(s.email||'—') + '</td><td class="num-cell">' + stats.count + '</td><td class="num-cell">' + formatVND(stats.tongTien) + '</td><td><button class="btn btn-secondary btn-sm" onclick="location.hash=\'#/suppliers/' + s.id + '\'">' + ICONS.eye + '</button></td></tr>';
+  });
+  html += '</tbody></table></div>';
+  content.innerHTML = html;
+}
+function supplierStats(supplierId){
+  var orders = getOrders().filter(function(o){ return o.nhaCungCapId===supplierId; });
+  var st = {count: orders.length, thung:0, ky:0, coi:0, tongTien:0};
+  orders.forEach(function(o){
+    var t = computeOrderTotals(o);
+    st.thung += Number(o.soThung)||0; st.ky += t.tongKy; st.coi += t.tongCoi; st.tongTien += t.tongTien;
+  });
+  return st;
+}
+function renderSupplierFormPage(content, supplierId){
+  var isEdit = !!supplierId;
+  var s = isEdit ? getSuppliers().find(function(x){ return x.id===supplierId; }) : null;
+  if (isEdit && !s){ content.innerHTML = '<div class="empty-state"><h3>Không tìm thấy nhà cung cấp</h3></div>'; return; }
+  s = s || {ten:'', nguoiLienHe:'', soDienThoai:'', email:'', diaChi:'', ghiChu:''};
+  var html = '<button class="back-link" onclick="location.hash=\'' + (isEdit?'#/suppliers/'+s.id:'#/suppliers') + '\'">' + ICONS.back + ' Quay lại</button>';
+  html += '<h1 style="margin-bottom:14px;">' + (isEdit?'Sửa nhà cung cấp':'Thêm nhà cung cấp mới') + '</h1>';
+  html += '<form id="supplier-form" novalidate onsubmit="handleSupplierFormSubmit(event,\'' + (isEdit?s.id:'') + '\'); return false;"><div class="card">';
+  html += '<div class="form-group"><label>Tên nhà cung cấp <span class="req">*</span></label><input type="text" id="s-ten" class="input" value="' + escapeHtml(s.ten) + '"><div class="field-error-msg" id="s-ten-error"></div></div>';
+  html += '<div class="form-row cols-2"><div class="form-group"><label>Người liên hệ</label><input type="text" id="s-lienhe" class="input" value="' + escapeHtml(s.nguoiLienHe) + '"></div>' +
+    '<div class="form-group"><label>Số điện thoại</label><input type="text" inputmode="tel" id="s-dienthoai" class="input" value="' + escapeHtml(s.soDienThoai) + '"></div></div>';
+  html += '<div class="form-group"><label>Email</label><input type="text" inputmode="email" id="s-email" class="input" value="' + escapeHtml(s.email) + '"></div>';
+  html += '<div class="form-group"><label>Địa chỉ</label><input type="text" id="s-diachi" class="input" value="' + escapeHtml(s.diaChi) + '"></div>';
+  html += '<div class="form-group"><label>Ghi chú</label><textarea id="s-ghichu" class="input">' + escapeHtml(s.ghiChu) + '</textarea></div>';
+  html += '</div><div class="btn-row"><button type="submit" class="btn btn-primary">Lưu</button><button type="button" class="btn btn-secondary" onclick="location.hash=\'' + (isEdit?'#/suppliers/'+s.id:'#/suppliers') + '\'">Hủy</button></div></form>';
+  content.innerHTML = html;
+}
+function handleSupplierFormSubmit(event, supplierId){
+  event.preventDefault();
+  var form = document.getElementById('supplier-form');
+  clearFormErrors(form);
+  var ten = document.getElementById('s-ten').value.trim();
+  if (!ten){ setFieldError('s-ten','Vui lòng nhập tên nhà cung cấp.'); showToast('Vui lòng kiểm tra lại thông tin.', 'error'); focusFirstError(form); return; }
+  var data = {ten: ten, nguoiLienHe: document.getElementById('s-lienhe').value.trim(), soDienThoai: document.getElementById('s-dienthoai').value.trim(),
+    email: document.getElementById('s-email').value.trim(), diaChi: document.getElementById('s-diachi').value.trim(), ghiChu: document.getElementById('s-ghichu').value.trim()};
+  var list = getSuppliers();
+  if (supplierId){
+    var idx = list.findIndex(function(x){ return x.id===supplierId; });
+    if (idx===-1){ showToast('Không tìm thấy nhà cung cấp.', 'error'); return; }
+    list[idx] = Object.assign({}, list[idx], data);
+    if (!saveSuppliers(list)) return;
+    showToast('Đã cập nhật nhà cung cấp.', 'success');
+    location.hash = '#/suppliers/' + supplierId;
+  } else {
+    var s = Object.assign({id: uid(), createdAt: new Date().toISOString()}, data);
+    list.push(s);
+    if (!saveSuppliers(list)) return;
+    showToast('Đã thêm nhà cung cấp "' + s.ten + '".', 'success');
+    location.hash = '#/suppliers/' + s.id;
+  }
+}
+function handleDeleteSupplier(supplierId){
+  var s = getSuppliers().find(function(x){ return x.id===supplierId; });
+  if (!s) return;
+  var used = getOrders().some(function(o){ return o.nhaCungCapId===supplierId; });
+  if (used){
+    showToast('Không thể xóa "' + s.ten + '" vì đang có đơn hàng liên kết. Vui lòng xóa hoặc chuyển các đơn hàng đó trước.', 'error');
+    return;
+  }
+  showConfirm('Xóa nhà cung cấp', 'Bạn có chắc muốn xóa nhà cung cấp "' + s.ten + '"?', function(){
+    var list = getSuppliers().filter(function(x){ return x.id!==supplierId; });
+    if (!saveSuppliers(list)) return;
+    showToast('Đã xóa nhà cung cấp.', 'success');
+    location.hash = '#/suppliers';
+  }, {confirmText:'Xóa', dangerConfirm:true});
+}
+function renderSupplierDetailPage(content, supplierId){
+  var s = getSuppliers().find(function(x){ return x.id===supplierId; });
+  if (!s){ content.innerHTML = '<div class="empty-state"><h3>Không tìm thấy nhà cung cấp</h3><button class="btn btn-primary" onclick="location.hash=\'#/suppliers\'">Về danh sách</button></div>'; return; }
+  var stats = supplierStats(s.id);
+  var orders = getOrders().filter(function(o){ return o.nhaCungCapId===s.id; }).sort(function(a,b){ return (b.soPO||'').localeCompare(a.soPO||''); });
+  var html = '<button class="back-link" onclick="location.hash=\'#/suppliers\'">' + ICONS.back + ' Quay lại danh sách</button>';
+  html += '<div class="detail-header"><h1>' + escapeHtml(s.ten) + '</h1></div>';
+  html += '<div class="btn-row" style="margin-bottom:14px;">' +
+    '<button class="btn btn-secondary" onclick="location.hash=\'#/suppliers/' + s.id + '/edit\'">' + ICONS.edit + ' Sửa</button>' +
+    '<button class="btn btn-secondary" onclick="exportOrdersExcel(false,\'' + s.id + '\')">' + ICONS.download + ' Xuất lịch sử mua hàng</button>' +
+    '<button class="btn btn-danger" onclick="handleDeleteSupplier(\'' + s.id + '\')">' + ICONS.trash + ' Xóa</button></div>';
+  html += '<div class="card"><div class="card-title">Thông tin liên hệ</div><div class="kv-list">' +
+    '<div><div class="l">Người liên hệ</div><div class="v">' + escapeHtml(s.nguoiLienHe||'—') + '</div></div>' +
+    '<div><div class="l">Số điện thoại</div><div class="v">' + escapeHtml(s.soDienThoai||'—') + '</div></div>' +
+    '<div><div class="l">Email</div><div class="v">' + escapeHtml(s.email||'—') + '</div></div>' +
+    '<div><div class="l">Địa chỉ</div><div class="v">' + escapeHtml(s.diaChi||'—') + '</div></div>' +
+  '</div>' + (s.ghiChu ? '<div style="margin-top:10px;"><div class="l" style="font-size:12px;color:var(--text-muted);font-weight:600;">Ghi chú</div><div>'+escapeHtml(s.ghiChu)+'</div></div>' : '') + '</div>';
+  html += '<div class="grid-stats" style="grid-template-columns:repeat(2,1fr);">' +
+    '<div class="stat-card"><div class="label">Tổng số đơn hàng</div><div class="value">' + formatInt(stats.count) + '</div></div>' +
+    '<div class="stat-card"><div class="label">Tổng số thùng</div><div class="value">' + formatInt(stats.thung) + '</div></div>' +
+    '<div class="stat-card"><div class="label">Tổng số ký</div><div class="value">' + formatDec(stats.ky,1) + '</div></div>' +
+    '<div class="stat-card"><div class="label">Tổng tiền mua hàng</div><div class="value">' + formatVND(stats.tongTien) + '</div></div>' +
+  '</div>';
+  html += '<h3 style="margin:16px 0 10px;">Danh sách đơn hàng</h3>';
+  if (!orders.length){ html += '<div class="card" style="text-align:center;color:var(--text-muted);">Chưa có đơn hàng nào.</div>'; }
+  else { html += '<div class="mobile-only">'; orders.forEach(function(o){ html += orderCard(o); }); html += '</div>';
+    html += '<div class="table-wrap desktop-only"><table><thead><tr><th>Số PO</th><th>Ngày đặt</th><th>Tên hàng</th><th class="num-cell">Thùng</th><th class="num-cell">Tổng tiền</th><th>Trạng thái</th><th></th></tr></thead><tbody>';
+    orders.forEach(function(o){ var t=computeOrderTotals(o); html += '<tr><td><a href="#/orders/'+o.id+'">'+escapeHtml(o.soPO)+'</a></td><td>'+formatDateDMY(o.ngayDatHang)+'</td><td>'+escapeHtml(o.tenHang)+'</td><td class="num-cell">'+formatInt(o.soThung)+'</td><td class="num-cell">'+formatVND(t.tongTien)+'</td><td><span class="badge badge-'+o.trangThai+'">'+STATUS_LABELS[o.trangThai]+'</span></td><td><button class="btn btn-secondary btn-sm" onclick="location.hash=\'#/orders/'+o.id+'\'">'+ICONS.eye+'</button></td></tr>'; });
+    html += '</tbody></table></div>';
+  }
+  content.innerHTML = html;
+}
+
+/* ===================== 15. ĐỊA CHỈ GIAO HÀNG: DANH SÁCH / FORM ===================== */
+var addressSearchQ = '';
+function renderAddressesListPage(content){
+  var list = getAddresses().slice().sort(function(a,b){ return a.ten.localeCompare(b.ten,'vi'); });
+  if (addressSearchQ){
+    var q = addressSearchQ.toLowerCase();
+    list = list.filter(function(a){ return (a.ten+' '+(a.diaChi||'')+' '+(a.nguoiLienHe||'')).toLowerCase().indexOf(q)!==-1; });
+  }
+  var html = topbar('Địa chỉ giao hàng', '<button class="btn btn-primary" onclick="location.hash=\'#/addresses/new\'">' + ICONS.plus + ' Thêm địa chỉ</button>');
+  html += '<div class="filter-bar"><div class="fg" style="grid-column:1/-1;"><label>Tìm kiếm</label><input type="text" class="input" placeholder="Tên, địa chỉ, người liên hệ..." value="' + escapeHtml(addressSearchQ) + '" oninput="addressSearchQ=this.value; route();"></div></div>';
+  if (!list.length){
+    html += '<div class="empty-state">' + ICONS.addresses + '<h3>Chưa có địa chỉ giao hàng</h3></div>';
+    content.innerHTML = html; return;
+  }
+  html += '<div class="mobile-only">';
+  list.forEach(function(a){
+    html += '<div class="item-card"><div class="item-card-head"><div><div class="po-no">' + escapeHtml(a.ten) + '</div><div class="sub">' + escapeHtml(a.diaChi||'—') + '</div></div><span class="tag-loai">' + LOAI_DIACHI_LABELS[a.loai] + '</span></div>' +
+      '<div class="sub">' + escapeHtml(a.nguoiLienHe||'—') + (a.soDienThoai ? ' · '+escapeHtml(a.soDienThoai):'') + '</div>' +
+      '<div class="item-card-actions"><button class="btn btn-secondary btn-sm" onclick="location.hash=\'#/addresses/' + a.id + '/edit\'">' + ICONS.edit + ' Sửa</button><button class="btn btn-danger btn-sm" onclick="handleDeleteAddress(\'' + a.id + '\')">' + ICONS.trash + ' Xóa</button></div></div>';
+  });
+  html += '</div>';
+  html += '<div class="table-wrap desktop-only"><table><thead><tr><th>Tên xưởng/kho</th><th>Loại</th><th>Địa chỉ</th><th>Người liên hệ</th><th>Điện thoại</th><th></th></tr></thead><tbody>';
+  list.forEach(function(a){
+    html += '<tr><td>' + escapeHtml(a.ten) + '</td><td><span class="tag-loai">' + LOAI_DIACHI_LABELS[a.loai] + '</span></td><td>' + escapeHtml(a.diaChi||'—') + '</td><td>' + escapeHtml(a.nguoiLienHe||'—') + '</td><td>' + escapeHtml(a.soDienThoai||'—') + '</td>' +
+      '<td><div class="btn-row"><button class="btn btn-secondary btn-sm" onclick="location.hash=\'#/addresses/' + a.id + '/edit\'">' + ICONS.edit + '</button><button class="btn btn-danger btn-sm" onclick="handleDeleteAddress(\'' + a.id + '\')">' + ICONS.trash + '</button></div></td></tr>';
+  });
+  html += '</tbody></table></div>';
+  content.innerHTML = html;
+}
+function renderAddressFormPage(content, addressId){
+  var isEdit = !!addressId;
+  var a = isEdit ? getAddresses().find(function(x){ return x.id===addressId; }) : null;
+  if (isEdit && !a){ content.innerHTML = '<div class="empty-state"><h3>Không tìm thấy địa chỉ</h3></div>'; return; }
+  a = a || {ten:'', loai:'xuong_det', diaChi:'', nguoiLienHe:'', soDienThoai:'', ghiChu:''};
+  var html = '<button class="back-link" onclick="location.hash=\'#/addresses\'">' + ICONS.back + ' Quay lại</button>';
+  html += '<h1 style="margin-bottom:14px;">' + (isEdit?'Sửa địa chỉ giao hàng':'Thêm địa chỉ giao hàng mới') + '</h1>';
+  html += '<form id="address-form" novalidate onsubmit="handleAddressFormSubmit(event,\'' + (isEdit?a.id:'') + '\'); return false;"><div class="card">';
+  html += '<div class="form-group"><label>Tên xưởng/kho <span class="req">*</span></label><input type="text" id="a-ten" class="input" value="' + escapeHtml(a.ten) + '"><div class="field-error-msg" id="a-ten-error"></div></div>';
+  html += '<div class="form-group"><label>Loại</label><select id="a-loai" class="input"><option value="xuong_det"' + (a.loai==='xuong_det'?' selected':'') + '>Xưởng dệt hợp tác</option><option value="kho_chinh"' + (a.loai==='kho_chinh'?' selected':'') + '>Kho chính công ty</option></select></div>';
+  html += '<div class="form-group"><label>Địa chỉ</label><input type="text" id="a-diachi" class="input" value="' + escapeHtml(a.diaChi) + '"></div>';
+  html += '<div class="form-row cols-2"><div class="form-group"><label>Người liên hệ</label><input type="text" id="a-lienhe" class="input" value="' + escapeHtml(a.nguoiLienHe) + '"></div>' +
+    '<div class="form-group"><label>Số điện thoại</label><input type="text" inputmode="tel" id="a-dienthoai" class="input" value="' + escapeHtml(a.soDienThoai) + '"></div></div>';
+  html += '<div class="form-group"><label>Ghi chú</label><textarea id="a-ghichu" class="input">' + escapeHtml(a.ghiChu) + '</textarea></div>';
+  html += '</div><div class="btn-row"><button type="submit" class="btn btn-primary">Lưu</button><button type="button" class="btn btn-secondary" onclick="location.hash=\'#/addresses\'">Hủy</button></div></form>';
+  content.innerHTML = html;
+}
+function handleAddressFormSubmit(event, addressId){
+  event.preventDefault();
+  var form = document.getElementById('address-form');
+  clearFormErrors(form);
+  var ten = document.getElementById('a-ten').value.trim();
+  if (!ten){ setFieldError('a-ten','Vui lòng nhập tên xưởng/kho.'); showToast('Vui lòng kiểm tra lại thông tin.', 'error'); focusFirstError(form); return; }
+  var data = {ten: ten, loai: document.getElementById('a-loai').value, diaChi: document.getElementById('a-diachi').value.trim(),
+    nguoiLienHe: document.getElementById('a-lienhe').value.trim(), soDienThoai: document.getElementById('a-dienthoai').value.trim(), ghiChu: document.getElementById('a-ghichu').value.trim()};
+  var list = getAddresses();
+  if (addressId){
+    var idx = list.findIndex(function(x){ return x.id===addressId; });
+    if (idx===-1){ showToast('Không tìm thấy địa chỉ.', 'error'); return; }
+    list[idx] = Object.assign({}, list[idx], data);
+    if (!saveAddresses(list)) return;
+    showToast('Đã cập nhật địa chỉ.', 'success');
+  } else {
+    var a = Object.assign({id: uid(), createdAt: new Date().toISOString()}, data);
+    list.push(a);
+    if (!saveAddresses(list)) return;
+    showToast('Đã thêm địa chỉ "' + a.ten + '".', 'success');
+  }
+  location.hash = '#/addresses';
+}
+function handleDeleteAddress(addressId){
+  var a = getAddresses().find(function(x){ return x.id===addressId; });
+  if (!a) return;
+  var used = getOrders().some(function(o){ return o.diaChiGiaoHangId===addressId; });
+  if (used){
+    showToast('Không thể xóa "' + a.ten + '" vì đang có đơn hàng liên kết. Vui lòng chuyển các đơn hàng đó sang địa chỉ khác trước.', 'error');
+    return;
+  }
+  showConfirm('Xóa địa chỉ', 'Bạn có chắc muốn xóa địa chỉ "' + a.ten + '"?', function(){
+    var list = getAddresses().filter(function(x){ return x.id!==addressId; });
+    if (!saveAddresses(list)) return;
+    showToast('Đã xóa địa chỉ.', 'success');
+    location.hash = '#/addresses';
+  }, {confirmText:'Xóa', dangerConfirm:true});
+}
+
+/* ===================== 16. BÁO CÁO ===================== */
+var reportFilters = {tu:'', den:''};
+function reportFilteredOrders(){
+  return getOrders().filter(function(o){
+    if (reportFilters.tu && o.ngayDatHang < reportFilters.tu) return false;
+    if (reportFilters.den && o.ngayDatHang > reportFilters.den) return false;
+    return true;
+  });
+}
+function groupBy(orders, keyFn, labelFn){
+  var map = {};
+  orders.forEach(function(o){
+    var key = keyFn(o);
+    if (!map[key]) map[key] = {key:key, label: labelFn(o), count:0, thung:0, ky:0, coi:0, truocVAT:0, tienVAT:0, tongTien:0};
+    var g = map[key];
+    var t = computeOrderTotals(o);
+    g.count++; g.thung += Number(o.soThung)||0; g.ky += t.tongKy; g.coi += t.tongCoi;
+    g.truocVAT += t.thanhTienTruocVAT; g.tienVAT += t.tienVAT; g.tongTien += t.tongTien;
+  });
+  return Object.keys(map).map(function(k){ return map[k]; }).sort(function(a,b){ return a.label.localeCompare(b.label,'vi'); });
+}
+function reportTableHtml(headers, rows){
+  var html = '<div class="table-wrap"><table><thead><tr>' + headers.map(function(h){ return '<th' + (h.num?' class="num-cell"':'') + '>'+h.label+'</th>'; }).join('') + '</tr></thead><tbody>';
+  if (!rows.length){ html += '<tr><td colspan="'+headers.length+'" style="text-align:center;color:var(--text-muted);">Không có dữ liệu.</td></tr>'; }
+  rows.forEach(function(r){ html += '<tr>' + r.map(function(c,i){ return '<td' + (headers[i].num?' class="num-cell"':'') + '>'+c+'</td>'; }).join('') + '</tr>'; });
+  html += '</tbody></table></div>';
+  return html;
+}
+function renderReportsPage(content){
+  var orders = reportFilteredOrders();
+  var byMonth = groupBy(orders, function(o){ return (o.ngayDatHang||'').slice(0,7); }, function(o){ var m=(o.ngayDatHang||'').slice(0,7).split('-'); return m.length===2 ? 'Tháng '+m[1]+'/'+m[0] : '(Không rõ ngày)'; });
+  var bySupplier = groupBy(orders, function(o){ return o.nhaCungCapId||'_none'; }, function(o){ return supplierName(o.nhaCungCapId); });
+  var byItem = groupBy(orders, function(o){ return (o.tenHang||'').toLowerCase()+'|'+(o.maHang||'').toLowerCase(); }, function(o){ return o.tenHang + (o.maHang?' ('+o.maHang+')':''); });
+
+  var html = topbar('Báo cáo');
+  html += '<div class="filter-bar"><div class="fg"><label>Từ ngày</label><input type="date" class="input" value="' + escapeHtml(reportFilters.tu) + '" onchange="reportFilters.tu=this.value; route();"></div>' +
+    '<div class="fg"><label>Đến ngày</label><input type="date" class="input" value="' + escapeHtml(reportFilters.den) + '" onchange="reportFilters.den=this.value; route();"></div>' +
+    '<div class="fg"><button class="btn btn-secondary btn-block" onclick="reportFilters={tu:\'\',den:\'\'}; route();">Xóa lọc</button></div></div>';
+
+  var headers = [{label:'Nhóm'},{label:'Số đơn',num:true},{label:'Tổng thùng',num:true},{label:'Tổng ký',num:true},{label:'Tổng cối',num:true},{label:'Trước VAT',num:true},{label:'VAT',num:true},{label:'Tổng tiền',num:true}];
+
+  html += '<div class="section-title-row"><h3>Báo cáo theo tháng</h3><button class="btn btn-secondary btn-sm" onclick="exportReportExcel(\'thang\')">' + ICONS.download + ' Xuất Excel</button></div>';
+  html += reportTableHtml(headers, byMonth.map(function(g){ return [escapeHtml(g.label), g.count, formatInt(g.thung), formatDec(g.ky,1), formatInt(g.coi), formatVND(g.truocVAT), formatVND(g.tienVAT), formatVND(g.tongTien)]; }));
+
+  html += '<div class="section-title-row" style="margin-top:18px;"><h3>Báo cáo theo nhà cung cấp</h3><button class="btn btn-secondary btn-sm" onclick="exportReportExcel(\'ncc\')">' + ICONS.download + ' Xuất Excel</button></div>';
+  html += reportTableHtml(headers, bySupplier.map(function(g){ return [escapeHtml(g.label), g.count, formatInt(g.thung), formatDec(g.ky,1), formatInt(g.coi), formatVND(g.truocVAT), formatVND(g.tienVAT), formatVND(g.tongTien)]; }));
+
+  html += '<div class="section-title-row" style="margin-top:18px;"><h3>Báo cáo theo mặt hàng</h3><button class="btn btn-secondary btn-sm" onclick="exportReportExcel(\'mathang\')">' + ICONS.download + ' Xuất Excel</button></div>';
+  html += reportTableHtml(headers, byItem.map(function(g){ return [escapeHtml(g.label), g.count, formatInt(g.thung), formatDec(g.ky,1), formatInt(g.coi), formatVND(g.truocVAT), formatVND(g.tienVAT), formatVND(g.tongTien)]; }));
+
+  content.innerHTML = html;
+}
+
+/* ===================== 17. SAO LƯU / PHỤC HỒI DỮ LIỆU ===================== */
+function renderBackupPage(content){
+  var html = topbar('Sao lưu / Dữ liệu');
+  html += '<div class="card">' +
+    '<div class="card-title">Về việc lưu trữ dữ liệu</div>' +
+    '<p style="font-size:14px;">Ứng dụng này lưu toàn bộ dữ liệu ngay trên trình duyệt của thiết bị đang dùng (không có máy chủ trung tâm). Dữ liệu <strong>không tự đồng bộ</strong> giữa điện thoại và máy tính, và có thể mất nếu xóa dữ liệu trình duyệt. Hãy sao lưu định kỳ, đặc biệt trước khi đổi thiết bị hoặc xóa lịch sử duyệt web.</p>' +
+  '</div>';
+  html += '<div class="card"><div class="card-title">Sao lưu dữ liệu</div><p style="font-size:14px;">Tải về một tệp JSON chứa toàn bộ đơn hàng, nhận hàng, nhà cung cấp và địa chỉ.</p>' +
+    '<button class="btn btn-primary" onclick="exportBackupJSON()">' + ICONS.download + ' Tải tệp sao lưu</button></div>';
+  html += '<div class="card"><div class="card-title">Phục hồi dữ liệu</div><p style="font-size:14px;">Chọn một tệp sao lưu JSON để phục hồi. <strong style="color:var(--danger);">Lưu ý: thao tác này sẽ ghi đè toàn bộ dữ liệu hiện tại.</strong></p>' +
+    '<input type="file" id="restore-file-input" accept="application/json,.json" style="margin-bottom:10px;" onchange="handleRestoreFile(this)">' +
+  '</div>';
+  html += '<div class="card"><div class="card-title">Xóa toàn bộ dữ liệu</div><p style="font-size:14px;">Xóa toàn bộ đơn hàng, nhận hàng, nhà cung cấp, địa chỉ trên thiết bị này. Hãy sao lưu trước khi thực hiện.</p>' +
+    '<button class="btn btn-danger" onclick="handleResetAllData()">' + ICONS.trash + ' Xóa toàn bộ dữ liệu</button></div>';
+  content.innerHTML = html;
+}
+function exportBackupJSON(){
+  try{
+    var payload = {app:'qldh', version:1, exportedAt: new Date().toISOString(),
+      orders: getOrders(), receipts: getReceipts(), suppliers: getSuppliers(), addresses: getAddresses()};
+    var blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+    var d = new Date();
+    var fname = 'sao-luu-qldh-' + d.getFullYear() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0') + '-' + String(d.getHours()).padStart(2,'0') + String(d.getMinutes()).padStart(2,'0') + '.json';
+    exportBlob(blob, fname, 'application/json');
+  }catch(err){ reportError('Lỗi khi tạo tệp sao lưu: ' + err.message); }
+}
+function handleRestoreFile(inputEl){
+  var file = inputEl.files && inputEl.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onerror = function(){ reportError('Không đọc được tệp đã chọn.'); };
+  reader.onload = function(){
+    var data;
+    try{ data = JSON.parse(reader.result); }
+    catch(err){ showToast('Tệp không đúng định dạng JSON hợp lệ.', 'error'); inputEl.value=''; return; }
+    if (!data || typeof data !== 'object' || !Array.isArray(data.orders) || !Array.isArray(data.suppliers)){
+      showToast('Tệp không đúng định dạng sao lưu của ứng dụng này.', 'error'); inputEl.value=''; return;
+    }
+    showConfirm('Phục hồi dữ liệu', 'Việc phục hồi sẽ GHI ĐÈ toàn bộ dữ liệu hiện tại trên thiết bị này bằng dữ liệu trong tệp đã chọn. Bạn có chắc muốn tiếp tục?', function(){
+      var ok = saveOrders(data.orders||[]) && saveReceipts(data.receipts||[]) && saveSuppliers(data.suppliers||[]) && saveAddresses(data.addresses||[]);
+      if (ok){ showToast('Đã phục hồi dữ liệu thành công.', 'success'); location.hash = '#/dashboard'; setTimeout(function(){ location.reload(); }, 300); }
+      inputEl.value='';
+    }, {confirmText:'Ghi đè và phục hồi', dangerConfirm:true, onCancel:function(){ inputEl.value=''; }});
+  };
+  reader.readAsText(file);
+}
+function handleResetAllData(){
+  showConfirm('Xóa toàn bộ dữ liệu', 'Toàn bộ đơn hàng, nhận hàng, nhà cung cấp và địa chỉ trên thiết bị này sẽ bị xóa vĩnh viễn. Hành động này không thể hoàn tác. Bạn có chắc chắn?', function(){
+    var ok = saveOrders([]) && saveReceipts([]) && saveSuppliers([]) && saveAddresses([]);
+    if (ok){ showToast('Đã xóa toàn bộ dữ liệu.', 'success'); location.hash = '#/dashboard'; setTimeout(function(){ location.reload(); }, 300); }
+  }, {confirmText:'Xóa vĩnh viễn', dangerConfirm:true});
+}
+
+/* ===================== 18. XUẤT FILE: CHIA SẺ / TẢI XUỐNG ===================== */
+async function exportBlob(blob, filename, mimeType){
+  try{
+    var file;
+    try{ file = new File([blob], filename, {type: mimeType}); }catch(e){ file = null; }
+    if (file && navigator.canShare && navigator.canShare({files:[file]})){
+      try{
+        await navigator.share({files:[file], title: filename});
+        showToast('Đã chia sẻ / lưu tệp "' + filename + '".', 'success');
+        return;
+      }catch(shareErr){
+        if (shareErr && shareErr.name === 'AbortError') return;
+        // rơi xuống phương án tải xuống dự phòng
+      }
+    }
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = filename; a.style.display='none';
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 4000);
+    showToast('Đã tải xuống tệp "' + filename + '".', 'success');
+  }catch(err){
+    reportError('Lỗi khi xuất tệp "' + filename + '": ' + err.message);
+  }
+}
+function checkLib(name, obj){
+  if (typeof obj === 'undefined'){
+    showToast('Không tải được thư viện "' + name + '" (cần kết nối Internet). Vui lòng kiểm tra mạng và thử lại.', 'error');
+    return false;
+  }
+  return true;
+}
+
+/* ===================== 19. XUẤT EXCEL ===================== */
+function buildSheetWithFormats(headers, rows, numericCols){
+  var aoa = [headers].concat(rows);
+  var ws = XLSX.utils.aoa_to_sheet(aoa);
+  var range = XLSX.utils.decode_range(ws['!ref']);
+  (numericCols||[]).forEach(function(nc){
+    for (var r=1; r<=range.e.r; r++){
+      var addr = XLSX.utils.encode_cell({r:r, c:nc.col});
+      var cell = ws[addr];
+      if (cell && typeof cell.v === 'number') cell.z = nc.format;
+    }
+  });
+  ws['!cols'] = headers.map(function(h){ return {wch: Math.max(13, String(h).length+3)}; });
+  return ws;
+}
+function downloadWorkbook(ws, sheetName, filename){
+  if (!checkLib('SheetJS (xlsx)', window.XLSX)) return;
+  try{
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    var out = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+    var blob = new Blob([out], {type:'application/octet-stream'});
+    exportBlob(blob, filename, 'application/octet-stream');
+  }catch(err){ reportError('Lỗi khi tạo tệp Excel: ' + err.message); }
+}
+function ordersToRows(orders){
+  return orders.map(function(o){
+    var t = computeOrderTotals(o);
+    var addr = getAddresses().find(function(x){ return x.id===o.diaChiGiaoHangId; });
+    return [o.soPO, formatDateDMY(o.ngayDatHang), supplierName(o.nhaCungCapId), addr?addr.ten:'', o.maHang||'', o.tenHang, o.hieuSoi||'',
+      Number(o.soThung)||0, Number(o.soCoiTrenThung)||0, Number(o.soKyTrenThung)||0, t.tongKy, t.tongCoi, Number(o.donGiaKg)||0,
+      VAT_LABELS[o.vat], t.thanhTienTruocVAT, t.tienVAT, t.tongTien, STATUS_LABELS[o.trangThai], o.ghiChu||''];
+  });
+}
+var ORDER_HEADERS = ['Số PO','Ngày đặt hàng','Nhà cung cấp','Địa chỉ giao hàng','Mã hàng','Tên hàng','Hiệu sợi','Số thùng','Số cối/thùng','Số ký/thùng','Tổng số ký','Tổng số cối','Đơn giá/KG','VAT','Thành tiền trước VAT','Tiền VAT','Tổng tiền','Trạng thái','Ghi chú'];
+var ORDER_NUMERIC_COLS = [
+  {col:7, format:'#,##0'},{col:8, format:'#,##0'},{col:9, format:'#,##0.##'},{col:10, format:'#,##0.##'},
+  {col:11, format:'#,##0'},{col:12, format:'#,##0'},{col:14, format:'#,##0'},{col:15, format:'#,##0'},{col:16, format:'#,##0'}
+];
+function exportOrdersExcel(allOrders, supplierId){
+  var orders;
+  if (supplierId) orders = getOrders().filter(function(o){ return o.nhaCungCapId===supplierId; });
+  else if (allOrders) orders = getOrders();
+  else orders = applyOrderFilters(getOrders());
+  if (!orders.length){ showToast('Không có đơn hàng nào để xuất.', 'warning'); return; }
+  var rows = ordersToRows(orders);
+  var ws = buildSheetWithFormats(ORDER_HEADERS, rows, ORDER_NUMERIC_COLS);
+  downloadWorkbook(ws, 'Đơn đặt hàng', 'don-dat-hang-' + todayISO() + '.xlsx');
+}
+var RECEIPT_HEADERS = ['Số PO','Ngày nhập','Nhà cung cấp','Tên hàng','Số thùng nhập','Số cối/thùng','Số ký/thùng','Tổng số ký nhập','Tổng số cối nhập','Số phiếu giao hàng','Ghi chú'];
+var RECEIPT_NUMERIC_COLS = [{col:4,format:'#,##0'},{col:5,format:'#,##0'},{col:6,format:'#,##0.##'},{col:7,format:'#,##0.##'},{col:8,format:'#,##0'}];
+function exportReceiptsExcel(orderId){
+  var receipts = orderId ? getReceiptsByOrder(orderId) : getReceipts();
+  if (!receipts.length){ showToast('Không có dữ liệu nhận hàng để xuất.', 'warning'); return; }
+  var orders = getOrders();
+  var rows = receipts.map(function(r){
+    var o = orders.find(function(x){ return x.id===r.orderId; }) || {};
+    var tongKy = (Number(r.soThungNhap)||0)*(Number(r.soKyTrenThung)||0);
+    var tongCoi = (Number(r.soThungNhap)||0)*(Number(r.soCoiTrenThung)||0);
+    return [o.soPO||'(đã xóa)', formatDateDMY(r.ngayNhap), supplierName(o.nhaCungCapId), o.tenHang||'', Number(r.soThungNhap)||0, Number(r.soCoiTrenThung)||0, Number(r.soKyTrenThung)||0, tongKy, tongCoi, r.soPhieuGiaoHang||'', r.ghiChu||''];
+  });
+  var ws = buildSheetWithFormats(RECEIPT_HEADERS, rows, RECEIPT_NUMERIC_COLS);
+  downloadWorkbook(ws, 'Nhận hàng', 'nhan-hang-' + todayISO() + '.xlsx');
+}
+function exportReportExcel(type){
+  var orders = reportFilteredOrders();
+  var groups, name;
+  if (type==='thang'){ groups = groupBy(orders, function(o){ return (o.ngayDatHang||'').slice(0,7); }, function(o){ var m=(o.ngayDatHang||'').slice(0,7).split('-'); return m.length===2 ? 'Tháng '+m[1]+'/'+m[0] : '(Không rõ ngày)'; }); name='bao-cao-theo-thang'; }
+  else if (type==='ncc'){ groups = groupBy(orders, function(o){ return o.nhaCungCapId||'_none'; }, function(o){ return supplierName(o.nhaCungCapId); }); name='bao-cao-theo-nha-cung-cap'; }
+  else { groups = groupBy(orders, function(o){ return (o.tenHang||'').toLowerCase()+'|'+(o.maHang||'').toLowerCase(); }, function(o){ return o.tenHang + (o.maHang?' ('+o.maHang+')':''); }); name='bao-cao-theo-mat-hang'; }
+  if (!groups.length){ showToast('Không có dữ liệu để xuất báo cáo.', 'warning'); return; }
+  var headers = ['Nhóm','Số đơn hàng','Tổng số thùng','Tổng số ký','Tổng số cối','Thành tiền trước VAT','Tiền VAT','Tổng tiền'];
+  var rows = groups.map(function(g){ return [g.label, g.count, g.thung, g.ky, g.coi, g.truocVAT, g.tienVAT, g.tongTien]; });
+  var numCols = [{col:1,format:'#,##0'},{col:2,format:'#,##0'},{col:3,format:'#,##0.##'},{col:4,format:'#,##0'},{col:5,format:'#,##0'},{col:6,format:'#,##0'},{col:7,format:'#,##0'}];
+  var ws = buildSheetWithFormats(headers, rows, numCols);
+  downloadWorkbook(ws, 'Báo cáo', name + '-' + todayISO() + '.xlsx');
+}
+
+/* ===================== 20. XUẤT PHIẾU ĐẶT HÀNG (JPEG / PDF) ===================== */
+function buildPhieuHtml(o){
+  var t = computeOrderTotals(o);
+  var rem = computeRemaining(o);
+  var supplier = getSuppliers().find(function(x){ return x.id===o.nhaCungCapId; });
+  var addr = getAddresses().find(function(x){ return x.id===o.diaChiGiaoHangId; });
+  var receipts = getReceiptsByOrder(o.id).slice().sort(function(a,b){ return (a.ngayNhap||'').localeCompare(b.ngayNhap||''); });
+  var html = '<div class="phieu">';
+  html += '<h2>PHIẾU ĐẶT HÀNG</h2><div class="phieu-sub">Tạo lúc ' + new Date().toLocaleString('vi-VN') + '</div>';
+  html += '<div class="phieu-topline"><div><strong>Số PO:</strong> ' + escapeHtml(o.soPO) + '<br><strong>Ngày đặt:</strong> ' + formatDateDMY(o.ngayDatHang) + '</div><div style="text-align:right;"><span class="badge badge-' + o.trangThai + '">' + STATUS_LABELS[o.trangThai] + '</span></div></div>';
+  html += '<div class="phieu-section"><h4>Thông tin nhà cung cấp</h4><div class="kv2">' +
+    '<div><span class="l">Tên:</span> ' + escapeHtml(supplier?supplier.ten:'(Không rõ)') + '</div>' +
+    '<div><span class="l">Người liên hệ:</span> ' + escapeHtml(supplier&&supplier.nguoiLienHe?supplier.nguoiLienHe:'—') + '</div>' +
+    '<div><span class="l">Điện thoại:</span> ' + escapeHtml(supplier&&supplier.soDienThoai?supplier.soDienThoai:'—') + '</div>' +
+    '<div><span class="l">Địa chỉ NCC:</span> ' + escapeHtml(supplier&&supplier.diaChi?supplier.diaChi:'—') + '</div>' +
+  '</div></div>';
+  html += '<div class="phieu-section"><h4>Địa chỉ giao hàng</h4><div class="kv2">' +
+    '<div><span class="l">Nơi giao:</span> ' + escapeHtml(addr?addr.ten:'Chưa chọn') + '</div>' +
+    '<div><span class="l">Địa chỉ:</span> ' + escapeHtml(addr&&addr.diaChi?addr.diaChi:'—') + '</div>' +
+  '</div></div>';
+  html += '<div class="phieu-section"><h4>Thông tin hàng hóa</h4><div class="kv2">' +
+    '<div><span class="l">Mã hàng:</span> ' + escapeHtml(o.maHang||'—') + '</div>' +
+    '<div><span class="l">Hiệu sợi:</span> ' + escapeHtml(o.hieuSoi||'—') + '</div>' +
+    '<div style="grid-column:1/-1;"><span class="l">Tên hàng:</span> ' + escapeHtml(o.tenHang) + '</div>' +
+  '</div></div>';
+  html += '<div class="phieu-section"><h4>Số lượng &amp; giá</h4><div class="kv2">' +
+    '<div><span class="l">Số thùng:</span> ' + formatInt(o.soThung) + '</div>' +
+    '<div><span class="l">Số cối/thùng:</span> ' + formatInt(o.soCoiTrenThung) + '</div>' +
+    '<div><span class="l">Số ký/thùng:</span> ' + formatDec(o.soKyTrenThung,2) + '</div>' +
+    '<div><span class="l">Đơn giá/KG:</span> ' + formatVND(o.donGiaKg) + '</div>' +
+    '<div><span class="l">Tổng số ký:</span> ' + formatDec(t.tongKy,2) + ' kg</div>' +
+    '<div><span class="l">Tổng số cối:</span> ' + formatInt(t.tongCoi) + '</div>' +
+  '</div>' +
+  '<div class="total-box">' +
+    '<div class="row"><span>Thành tiền trước VAT</span><span>' + formatVND(t.thanhTienTruocVAT) + '</span></div>' +
+    '<div class="row"><span>Tiền VAT (' + VAT_LABELS[o.vat] + ')</span><span>' + formatVND(t.tienVAT) + '</span></div>' +
+    '<div class="row grand"><span>Tổng tiền</span><span>' + formatVND(t.tongTien) + '</span></div>' +
+  '</div></div>';
+  html += '<div class="phieu-section"><h4>Lịch sử nhận hàng</h4>';
+  if (!receipts.length){ html += '<p style="color:#5b6b7c;font-size:13px;">Chưa nhận hàng lần nào.</p>'; }
+  else {
+    html += '<table style="width:100%;border-collapse:collapse;" border="1"><thead><tr><th>Ngày nhập</th><th>Số thùng</th><th>Tổng ký</th><th>Tổng cối</th><th>Số phiếu GH</th></tr></thead><tbody>';
+    receipts.forEach(function(r){
+      var rk=(Number(r.soThungNhap)||0)*(Number(r.soKyTrenThung)||0), rc=(Number(r.soThungNhap)||0)*(Number(r.soCoiTrenThung)||0);
+      html += '<tr><td>'+formatDateDMY(r.ngayNhap)+'</td><td>'+formatInt(r.soThungNhap)+'</td><td>'+formatDec(rk,2)+'</td><td>'+formatInt(rc)+'</td><td>'+escapeHtml(r.soPhieuGiaoHang||'—')+'</td></tr>';
+    });
+    html += '</tbody></table>';
+  }
+  html += '<div style="margin-top:8px;font-size:13px;"><strong>Còn lại:</strong> ' + formatInt(rem.remainThung) + ' thùng ('+formatDec(rem.remainKy,2)+' kg, '+formatInt(rem.remainCoi)+' cối)</div>';
+  html += '</div>';
+  html += '<div class="signatures"><div>Người lập đơn<div class="sign-line">(Ký, ghi rõ họ tên)</div></div><div>Người phê duyệt<div class="sign-line">(Ký, ghi rõ họ tên)</div></div></div>';
+  html += '</div>';
+  return html;
+}
+async function renderPhieuToCanvas(orderId){
+  var o = getOrders().find(function(x){ return x.id===orderId; });
+  if (!o) throw new Error('Không tìm thấy đơn hàng.');
+  var area = document.getElementById('export-render-area');
+  area.innerHTML = buildPhieuHtml(o);
+  await new Promise(function(res){ setTimeout(res, 60); });
+  var canvas = await html2canvas(area.firstChild, {scale:2, backgroundColor:'#ffffff', useCORS:true});
+  area.innerHTML = '';
+  return {canvas: canvas, order: o};
+}
+async function exportOrderJPEG(orderId){
+  if (!checkLib('html2canvas', window.html2canvas)) return;
+  showToast('Đang tạo ảnh JPEG...', 'info');
+  try{
+    var res = await renderPhieuToCanvas(orderId);
+    await new Promise(function(resolve){
+      res.canvas.toBlob(function(blob){
+        if (!blob){ reportError('Không tạo được ảnh JPEG.'); resolve(); return; }
+        exportBlob(blob, 'phieu-dat-hang-' + res.order.soPO + '.jpg', 'image/jpeg').then(resolve);
+      }, 'image/jpeg', 0.92);
+    });
+  }catch(err){ reportError('Lỗi khi xuất JPEG: ' + err.message); }
+}
+async function exportOrderPDF(orderId){
+  if (!checkLib('html2canvas', window.html2canvas)) return;
+  if (!checkLib('jsPDF', window.jspdf)) return;
+  showToast('Đang tạo PDF...', 'info');
+  try{
+    var res = await renderPhieuToCanvas(orderId);
+    var imgData = res.canvas.toDataURL('image/jpeg', 0.95);
+    var pdf = new window.jspdf.jsPDF({unit:'pt', format:'a4'});
+    var pageWidth = pdf.internal.pageSize.getWidth();
+    var pageHeight = pdf.internal.pageSize.getHeight();
+    var margin = 24;
+    var imgWidth = pageWidth - margin*2;
+    var imgHeight = res.canvas.height * imgWidth / res.canvas.width;
+    var heightLeft = imgHeight;
+    var position = margin;
+    pdf.addImage(imgData, 'JPEG', margin, position, imgWidth, imgHeight);
+    heightLeft -= (pageHeight - margin*2);
+    while (heightLeft > 0){
+      position = heightLeft - imgHeight + margin;
+      pdf.addPage();
+      pdf.addImage(imgData, 'JPEG', margin, position, imgWidth, imgHeight);
+      heightLeft -= (pageHeight - margin*2);
+    }
+    var blob = pdf.output('blob');
+    await exportBlob(blob, 'phieu-dat-hang-' + res.order.soPO + '.pdf', 'application/pdf');
+  }catch(err){ reportError('Lỗi khi xuất PDF: ' + err.message); }
+}
+
+/* ===================== 21. KHỞI TẠO ỨNG DỤNG ===================== */
+function initApp(){
+  checkStorageAvailable();
+  renderNav();
+  window.addEventListener('hashchange', route);
+  route();
+}
+if (document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', initApp);
+} else {
+  initApp();
+}
+</script>
+</body>
+</html>
+
