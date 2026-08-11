@@ -381,18 +381,64 @@ function isNonNegInt(n){ return !isNaN(n) && isFinite(n) && n >= 0 && Number.isI
 function isNonNegNum(n){ return !isNaN(n) && isFinite(n) && n >= 0; }
 
 var STATUS_LABELS = {nhap:'Nháp', da_dat:'Đã đặt hàng', nhap_mot_phan:'Nhập một phần', da_nhap_du:'Đã nhập đủ', da_huy:'Đã hủy'};
-var VAT_LABELS = {'0':'Không VAT','8':'VAT 8%'};
+var VAT_LABELS = {khong:'Không VAT', da_vat:'Đã VAT (giá đã gồm 8%)', tuy_chinh:'VAT khác (tự nhập VAT/KG)'};
 var LOAI_DIACHI_LABELS = {xuong_det:'Xưởng dệt hợp tác', kho_chinh:'Kho chính công ty'};
 
+/* computeOrderTotals: cách tính phụ thuộc chế độ VAT của đơn hàng.
+   - khong: không có VAT, thành tiền trước VAT = tổng ký × đơn giá, tổng tiền = thành tiền trước VAT.
+   - da_vat: tổng ký × đơn giá là số tiền ĐÃ BAO GỒM 8% VAT -> tách ngược ra thành tiền trước VAT và tiền VAT.
+   - tuy_chinh: tổng ký × đơn giá là thành tiền trước VAT (giữ nguyên); người dùng tự nhập số tiền VAT / KG (vatTien),
+     tiền VAT = tổng số ký × vatTien, tổng tiền = thành tiền trước VAT + tiền VAT. */
 function computeOrderTotals(o){
   var soThung = Number(o.soThung)||0, coi = Number(o.soCoiTrenThung)||0, ky = Number(o.soKyTrenThung)||0;
   var tongKy = soThung*ky, tongCoi = soThung*coi;
   var donGia = Number(o.donGiaKg)||0;
-  var thanhTienTruocVAT = tongKy*donGia;
-  var vatRate = o.vat === '8' ? 0.08 : 0;
-  var tienVAT = thanhTienTruocVAT*vatRate;
-  var tongTien = thanhTienTruocVAT + tienVAT;
+  var thanhTienGoc = tongKy*donGia;
+  var thanhTienTruocVAT, tienVAT, tongTien;
+  var vatMode = o.vat;
+  if (vatMode === 'da_vat'){
+    thanhTienTruocVAT = thanhTienGoc / 1.08;
+    tienVAT = thanhTienGoc - thanhTienTruocVAT;
+    tongTien = thanhTienGoc;
+  } else if (vatMode === 'tuy_chinh'){
+    thanhTienTruocVAT = thanhTienGoc;
+    tienVAT = tongKy * (Number(o.vatTien)||0);
+    tongTien = thanhTienTruocVAT + tienVAT;
+  } else {
+    thanhTienTruocVAT = thanhTienGoc;
+    tienVAT = 0;
+    tongTien = thanhTienTruocVAT;
+  }
   return {tongKy:tongKy, tongCoi:tongCoi, thanhTienTruocVAT:thanhTienTruocVAT, tienVAT:tienVAT, tongTien:tongTien};
+}
+/* Di trú dữ liệu VAT cũ sang định dạng mới, giữ nguyên số tiền lịch sử. Chỉ chạy 1 lần duy nhất (có cờ đánh dấu)
+   để không xử lý lặp lại làm sai lệch dữ liệu đã đúng của các đơn tạo sau khi di trú.
+   - vat '0'/'8' (kiểu cũ nhất: VAT 8% cộng thêm trên thành tiền trước VAT) -> 'tuy_chinh' với VAT/KG = đơn giá × 8%.
+   - vat 'tuy_chinh' nhưng vatTien khi đó là TỔNG số tiền VAT (bản trung gian) -> quy đổi thành VAT/KG = tổng tiền VAT / tổng số ký. */
+function migrateOldVatData(){
+  var v2Done = Storage.get('vat_migration_v2_done', false);
+  if (v2Done) return;
+  var orders = getOrders();
+  var changed = false;
+  orders.forEach(function(o){
+    if (o.vat === '0'){
+      o.vat = 'khong'; changed = true;
+    } else if (o.vat === '8'){
+      var donGia = Number(o.donGiaKg)||0;
+      o.vat = 'tuy_chinh';
+      o.vatTien = Math.round(donGia*0.08*10000)/10000;
+      changed = true;
+    } else if (o.vat === 'tuy_chinh'){
+      var soThung = Number(o.soThung)||0, ky = Number(o.soKyTrenThung)||0;
+      var tongKy = soThung*ky;
+      if (tongKy > 0){
+        o.vatTien = Math.round((Number(o.vatTien)||0) / tongKy * 10000)/10000;
+        changed = true;
+      }
+    }
+  });
+  if (changed) saveOrders(orders);
+  Storage.set('vat_migration_v2_done', true);
 }
 function getReceiptsByOrder(orderId){
   return getReceipts().filter(function(r){ return r.orderId === orderId; });
@@ -784,7 +830,7 @@ function renderOrderFormPage(content, orderId){
     return;
   }
   o = o || {ngayDatHang: todayISO(), nhaCungCapId:'', diaChiGiaoHangId:'', maHang:'', tenHang:'', hieuSoi:'',
-    soThung:'', soCoiTrenThung:'', soKyTrenThung:'', donGiaKg:'', vat:'0', trangThai:'da_dat', ghiChu:''};
+    soThung:'', soCoiTrenThung:'', soKyTrenThung:'', donGiaKg:'', vat:'khong', vatTien:'', trangThai:'da_dat', ghiChu:''};
   var html = '<button class="back-link" onclick="location.hash=\'' + (isEdit ? '#/orders/'+o.id : '#/orders') + '\'">' + ICONS.back + ' Quay lại</button>';
   html += '<h1 style="margin-bottom:14px;">' + (isEdit ? 'Sửa đơn đặt hàng' : 'Tạo đơn đặt hàng mới') + '</h1>';
   html += '<form id="order-form" novalidate onsubmit="handleOrderFormSubmit(event,\'' + (isEdit?o.id:'') + '\'); return false;">';
@@ -826,7 +872,13 @@ function renderOrderFormPage(content, orderId){
   html += '<div class="card"><div class="card-title">Giá &amp; VAT</div>';
   html += '<div class="form-row cols-2">';
   html += '<div class="form-group"><label>Đơn giá / KG (VND) <span class="req">*</span></label><input type="text" inputmode="decimal" id="f-dongia" class="input" value="' + escapeHtml(o.donGiaKg) + '" oninput="recalcOrderFormTotals()"><div class="field-error-msg" id="f-dongia-error"></div></div>';
-  html += '<div class="form-group"><label>VAT</label><select id="f-vat" class="input" onchange="recalcOrderFormTotals()"><option value="0"' + (o.vat!=='8'?' selected':'') + '>Không VAT</option><option value="8"' + (o.vat==='8'?' selected':'') + '>VAT 8%</option></select></div>';
+  var vatMode = o.vat === '8' ? 'tuy_chinh' : (o.vat === '0' ? 'khong' : (o.vat || 'khong'));
+  html += '<div class="form-group"><label>VAT</label><select id="f-vat" class="input" onchange="updateVatModeUI(); recalcOrderFormTotals();">' +
+    '<option value="khong"' + (vatMode==='khong'?' selected':'') + '>Không VAT</option>' +
+    '<option value="da_vat"' + (vatMode==='da_vat'?' selected':'') + '>Đã VAT (đơn giá đã gồm 8%)</option>' +
+    '<option value="tuy_chinh"' + (vatMode==='tuy_chinh'?' selected':'') + '>VAT khác (tự nhập VAT/KG)</option>' +
+    '</select><div class="help-text" id="vat-mode-help"></div></div>';
+  html += '<div class="form-group" id="f-vattien-wrap" style="display:none;"><label>Số tiền VAT / KG (VND)</label><input type="text" inputmode="decimal" id="f-vattien" class="input" value="' + escapeHtml(o.vatTien) + '" oninput="recalcOrderFormTotals()"><div class="help-text">Sẽ nhân với Tổng số ký để ra Tiền VAT.</div><div class="field-error-msg" id="f-vattien-error"></div></div>';
   html += '</div>';
   html += '<div class="calc-grid" style="grid-template-columns:1fr;">' +
     '<div class="calc-item"><div class="l">Thành tiền trước VAT</div><div class="v" id="calc-truocvat">0 đ</div></div>' +
@@ -843,11 +895,25 @@ function renderOrderFormPage(content, orderId){
     '<button type="button" class="btn btn-secondary" onclick="location.hash=\'' + (isEdit ? '#/orders/'+o.id : '#/orders') + '\'">Hủy</button></div>';
   html += '</form>';
   content.innerHTML = html;
+  updateVatModeUI();
   recalcOrderFormTotals();
 }
 function updatePOPreview(){
   var el = document.getElementById('po-preview');
   if (el) el.textContent = 'Sẽ tự động tạo: ' + generatePONumber(document.getElementById('f-ngay').value);
+}
+function updateVatModeUI(){
+  var vatSel = document.getElementById('f-vat');
+  if (!vatSel) return;
+  var vat = vatSel.value;
+  var wrap = document.getElementById('f-vattien-wrap');
+  var help = document.getElementById('vat-mode-help');
+  if (wrap) wrap.style.display = (vat === 'tuy_chinh') ? 'block' : 'none';
+  if (help){
+    if (vat === 'da_vat') help.textContent = 'Đơn giá/KG nhập vào được hiểu là ĐÃ bao gồm 8% VAT. Hệ thống sẽ tự tách ra thành tiền trước VAT và tiền VAT.';
+    else if (vat === 'tuy_chinh') help.textContent = 'Thành tiền trước VAT tính theo đơn giá bình thường (chưa VAT). Tiền VAT = Tổng số ký × Số tiền VAT/KG bạn nhập, rồi cộng vào tổng tiền.';
+    else help.textContent = 'Đơn hàng không tính VAT.';
+  }
 }
 function recalcOrderFormTotals(){
   var soThung = parseVNNumber(document.getElementById('f-sothung').value);
@@ -857,13 +923,29 @@ function recalcOrderFormTotals(){
   var vat = document.getElementById('f-vat').value;
   var stV = isNaN(soThung)?0:soThung, coiV = isNaN(coi)?0:coi, kyV = isNaN(ky)?0:ky, giaV = isNaN(donGia)?0:donGia;
   var tongKy = stV*kyV, tongCoi = stV*coiV;
-  var truocVAT = tongKy*giaV;
-  var tienVAT = truocVAT*(vat==='8'?0.08:0);
+  var thanhTienGoc = tongKy*giaV;
+  var truocVAT, tienVAT, tongTien;
+  if (vat === 'da_vat'){
+    truocVAT = thanhTienGoc / 1.08;
+    tienVAT = thanhTienGoc - truocVAT;
+    tongTien = thanhTienGoc;
+  } else if (vat === 'tuy_chinh'){
+    var vatTienEl = document.getElementById('f-vattien');
+    var vatTienKg = vatTienEl ? parseVNNumber(vatTienEl.value) : 0;
+    if (isNaN(vatTienKg)) vatTienKg = 0;
+    truocVAT = thanhTienGoc;
+    tienVAT = tongKy * vatTienKg;
+    tongTien = truocVAT + tienVAT;
+  } else {
+    truocVAT = thanhTienGoc;
+    tienVAT = 0;
+    tongTien = truocVAT;
+  }
   document.getElementById('calc-tongky').textContent = formatDec(tongKy,2) + ' kg';
   document.getElementById('calc-tongcoi').textContent = formatInt(tongCoi) + ' cối';
   document.getElementById('calc-truocvat').textContent = formatVND(truocVAT);
   document.getElementById('calc-tienvat').textContent = formatVND(tienVAT);
-  document.getElementById('calc-tongtien').textContent = formatVND(truocVAT+tienVAT);
+  document.getElementById('calc-tongtien').textContent = formatVND(tongTien);
 }
 function handleOrderFormSubmit(event, orderId){
   event.preventDefault();
@@ -880,6 +962,11 @@ function handleOrderFormSubmit(event, orderId){
   var ky = parseVNNumber(document.getElementById('f-ky').value);
   var donGia = parseVNNumber(document.getElementById('f-dongia').value);
   var vat = document.getElementById('f-vat').value;
+  var vatTien = 0;
+  if (vat === 'tuy_chinh'){
+    var vatTienRaw = document.getElementById('f-vattien').value;
+    vatTien = parseVNNumber(vatTienRaw);
+  }
   var trangthai = document.getElementById('f-trangthai').value;
   var ghichu = document.getElementById('f-ghichu').value.trim();
 
@@ -895,6 +982,10 @@ function handleOrderFormSubmit(event, orderId){
   else if (!isNonNegNum(ky)){ setFieldError('f-ky','Số ký/thùng phải là số không âm.'); ok=false; }
   if (document.getElementById('f-dongia').value.trim()===''){ setFieldError('f-dongia','Vui lòng nhập đơn giá/KG.'); ok=false; }
   else if (!isNonNegNum(donGia)){ setFieldError('f-dongia','Đơn giá/KG phải là số không âm.'); ok=false; }
+  if (vat === 'tuy_chinh'){
+    if (document.getElementById('f-vattien').value.trim()===''){ setFieldError('f-vattien','Vui lòng nhập số tiền VAT/KG (hoặc chọn "Không VAT" nếu không có VAT).'); ok=false; }
+    else if (!isNonNegNum(vatTien)){ setFieldError('f-vattien','Số tiền VAT/KG phải là số không âm.'); ok=false; }
+  }
 
   if (!ok){
     showToast('Vui lòng kiểm tra lại các trường được đánh dấu đỏ.', 'error');
@@ -909,7 +1000,7 @@ function handleOrderFormSubmit(event, orderId){
     var existing = orders[idx];
     var updated = Object.assign({}, existing, {
       ngayDatHang: ngay, nhaCungCapId: ncc, diaChiGiaoHangId: diachi || '', maHang: mahang, tenHang: tenhang, hieuSoi: hieusoi,
-      soThung: soThung, soCoiTrenThung: coi, soKyTrenThung: ky, donGiaKg: donGia, vat: vat, trangThai: trangthai, ghiChu: ghichu,
+      soThung: soThung, soCoiTrenThung: coi, soKyTrenThung: ky, donGiaKg: donGia, vat: vat, vatTien: (vat==='tuy_chinh'?vatTien:0), trangThai: trangthai, ghiChu: ghichu,
       updatedAt: new Date().toISOString()
     });
     updated.trangThai = computeAutoStatus(updated);
@@ -922,7 +1013,7 @@ function handleOrderFormSubmit(event, orderId){
     var newOrder = {
       id: uid(), soPO: soPO, ngayDatHang: ngay, nhaCungCapId: ncc, diaChiGiaoHangId: diachi || '',
       maHang: mahang, tenHang: tenhang, hieuSoi: hieusoi, soThung: soThung, soCoiTrenThung: coi, soKyTrenThung: ky,
-      donGiaKg: donGia, vat: vat, trangThai: trangthai, ghiChu: ghichu,
+      donGiaKg: donGia, vat: vat, vatTien: (vat==='tuy_chinh'?vatTien:0), trangThai: trangthai, ghiChu: ghichu,
       createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
     };
     newOrder.trangThai = computeAutoStatus(newOrder);
@@ -986,6 +1077,7 @@ function renderOrderDetailPage(content, orderId, openReceive){
     '<div><div class="l">Tổng số cối</div><div class="v">' + formatInt(t.tongCoi) + '</div></div>' +
     '<div><div class="l">Đơn giá/KG</div><div class="v">' + formatVND(o.donGiaKg) + '</div></div>' +
     '<div><div class="l">VAT</div><div class="v">' + VAT_LABELS[o.vat] + '</div></div>' +
+    (o.vat==='tuy_chinh' ? '<div><div class="l">VAT/KG (tự nhập)</div><div class="v">' + formatVND(o.vatTien) + '</div></div>' : '') +
     '<div><div class="l">Thành tiền trước VAT</div><div class="v">' + formatVND(t.thanhTienTruocVAT) + '</div></div>' +
     '<div><div class="l">Tiền VAT</div><div class="v">' + formatVND(t.tienVAT) + '</div></div>' +
     '<div><div class="l" style="color:var(--primary-dark);">Tổng tiền</div><div class="v" style="color:var(--primary-dark);font-size:16px;">' + formatVND(t.tongTien) + '</div></div>' +
@@ -1630,6 +1722,7 @@ function buildPhieuHtml(o){
     '<div><span class="l">Đơn giá/KG:</span> ' + formatVND(o.donGiaKg) + '</div>' +
     '<div><span class="l">Tổng số ký:</span> ' + formatDec(t.tongKy,2) + ' kg</div>' +
     '<div><span class="l">Tổng số cối:</span> ' + formatInt(t.tongCoi) + '</div>' +
+    (o.vat==='tuy_chinh' ? '<div><span class="l">VAT/KG (tự nhập):</span> ' + formatVND(o.vatTien) + '</div>' : '') +
   '</div>' +
   '<div class="total-box">' +
     '<div class="row"><span>Thành tiền trước VAT</span><span>' + formatVND(t.thanhTienTruocVAT) + '</span></div>' +
@@ -1706,6 +1799,7 @@ async function exportOrderPDF(orderId){
 /* ===================== 21. KHỞI TẠO ỨNG DỤNG ===================== */
 function initApp(){
   checkStorageAvailable();
+  try{ migrateOldVatData(); }catch(err){ reportError('Lỗi khi cập nhật định dạng dữ liệu VAT cũ: ' + err.message); }
   renderNav();
   window.addEventListener('hashchange', route);
   route();
